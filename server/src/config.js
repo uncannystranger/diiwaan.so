@@ -12,8 +12,17 @@ dotenv.config({ path: path.join(ROOT, '.env') });
 const bool = (value, fallback = false) =>
   value === undefined ? fallback : /^(1|true|yes|on)$/i.test(String(value));
 
+/* Vercel sets NODE_ENV itself and refuses to let you set it, so production is
+   also recognised from VERCEL_ENV. Without this the app would run a deployed
+   instance with development defaults — unsecured cookies, no HTTPS enforcement
+   — simply because the variable it looked for could not be provided. */
+const environment = process.env.NODE_ENV
+  || (process.env.VERCEL_ENV === 'production' ? 'production' : null)
+  || (process.env.VERCEL ? 'production' : null)
+  || 'development';
+
 export const config = {
-  env: process.env.NODE_ENV || 'development',
+  env: environment,
   // Seals the session cookie. Set SESSION_SECRET in every deployed environment:
   // rotating it simply signs everyone out.
   sessionSecret: process.env.SESSION_SECRET || 'diiwaan-development-session-secret-change-me',
