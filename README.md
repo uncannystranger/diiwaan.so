@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src=".github/assets/banner.svg" alt="Diiwaan — queue management for Somali businesses" width="100%">
+<img src=".github/assets/hero.svg" alt="Diiwaan — queue management for Somali businesses" width="100%">
 
 <br>
 
