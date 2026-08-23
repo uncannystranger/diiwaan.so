@@ -484,6 +484,7 @@ const DICT = {
     'msg.alertsPush': 'Waan kuu soo sheegi doonaa marka lambarkaaga la wacayo, xitaa haddaad bogga xirto.',
     'msg.alertsLocal': 'Halkan ayaan kuugu sheegi doonaa marka lambarkaaga la wacayo. Bogga furan ku hay.',
     /* entry screens */
+    'auth.serviceDown': 'Adeeggu hadda ma shaqeynayo',
     'auth.tagline': 'Maareynta safka ganacsiyada Soomaaliyeed',
     'auth.headline': 'Ganacsi kastaa wuxuu mudan yahay<br>saf dadka ixtiraama.',
     'auth.lead': 'Samee akoonkaaga, magacaaga iyo astaantaada saar, hal QR daabac. Macaamiishaadu way iskaan gareeyaan, lambar bay qaataan, wayna fadhiistaan — app la’aan, akoon la’aan, waxna lama rakibo.',
@@ -974,6 +975,7 @@ const DICT = {
     'msg.alertsPush': 'We will notify this phone when your number is called, even if you close this page.',
     'msg.alertsLocal': 'We will alert you here when your number is called. Keep this page open.',
     /* entry screens */
+    'auth.serviceDown': 'The service is not available right now',
     'auth.tagline': 'Queue management for Somali businesses',
     'auth.headline': 'Every business deserves<br>a queue that respects people.',
     'auth.lead': 'Create your account, put your name and logo on it, print one QR code. Your customers scan, take a number, and go sit down — no app, no account, nothing to install.',

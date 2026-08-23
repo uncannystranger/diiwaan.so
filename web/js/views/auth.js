@@ -3,7 +3,19 @@
 
 import { esc, wordmark, themeButton, languageButton, icon, madeBy, diiwaanMark } from '../ui.js';
 import { t } from '../i18n.js';
-import { googleAuthAvailable, oauthError } from '../session.js';
+import { googleAuthAvailable, oauthError, state as sessionState } from '../session.js';
+
+/* When the API itself is unreachable, no form on this page can succeed. Saying
+   so above the form is more useful than letting each attempt fail with a
+   message about credentials. */
+function serviceNotice() {
+  if (!sessionState.backendError) return '';
+  return `
+    <div class="note note--alert" role="alert">
+      <strong>${t('auth.serviceDown')}</strong>
+      <span class="hint" style="display:block;margin-top:6px">${esc(sessionState.backendError)}</span>
+    </div>`;
+}
 
 /* Google's mark, drawn rather than fetched: the strict script/style policy keeps
    remote assets out, and a four-colour G is four paths. */
@@ -134,6 +146,7 @@ export function signUpView(ui) {
           <h1>${t('auth.createTitle')}</h1>
           <p class="lead">${t('auth.createLead')}</p>
         </div>
+        ${serviceNotice()}
         <form class="card stack gap-16" data-action="sign-up" novalidate>
           <div class="field ${form.errors.name ? 'field--bad' : ''}">
             <label for="su-name">${t('auth.yourName')}</label>
@@ -172,6 +185,7 @@ export function signInView(ui) {
           <h1>${t('auth.welcomeBack')}</h1>
           <p class="lead">${t('auth.signInLead')}</p>
         </div>
+        ${serviceNotice()}
         <form class="card stack gap-16" data-action="sign-in" novalidate>
           <div class="field ${form.errors.email ? 'field--bad' : ''}">
             <label for="si-email">${t('common.email')}</label>

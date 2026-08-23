@@ -16,7 +16,10 @@ export const state = {
   session: null,      // { accessToken, expiresAt, user } — memory only
   user: null,         // our own MongoDB profile view
   businesses: [],
-  needsVerification: false
+  needsVerification: false,
+  /* Set when the app cannot talk to its own API at all. Distinct from a wrong
+     password: nothing the person types will help until it is cleared. */
+  backendError: ''
 };
 
 const emit = () => listeners.forEach(fn => fn(state));
@@ -37,6 +40,10 @@ export let oauthError = '';
 /* ---------- Supabase REST ---------- */
 
 async function gotrue(path, { method = 'POST', body, token } = {}) {
+  if (!runtime?.supabaseUrl || !runtime?.supabaseAnonKey) {
+    throw new Error(state.backendError || 'The service is not reachable right now.');
+  }
+
   const response = await fetch(`${runtime.supabaseUrl}/auth/v1${path}`, {
     method,
     headers: {
@@ -104,7 +111,25 @@ export async function restore() {
 /* ---------- lifecycle ---------- */
 
 export async function boot() {
-  runtime = await fetch('/api/config').then(r => r.json());
+  /* Everything the browser does with identity needs this handshake first. When
+     it fails — an unconfigured deployment, an API that cannot start, a network
+     that is down — every later call would fail too, with a message about
+     passwords that has nothing to do with the real problem. So the failure is
+     recorded here, once, in the words of what actually happened. */
+  try {
+    const response = await fetch('/api/config');
+    const body = await response.json();
+    if (!response.ok || !body.supabaseUrl || !body.supabaseAnonKey) {
+      runtime = null;
+      state.backendError = body?.detail || body?.error || `The service replied ${response.status}.`;
+    } else {
+      runtime = body;
+      state.backendError = '';
+    }
+  } catch (error) {
+    runtime = null;
+    state.backendError = 'We could not reach the service. Check your connection and try again.';
+  }
 
   // Confirmation, password-reset and provider redirects all come back with
   // their result in the fragment.
