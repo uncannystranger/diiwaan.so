@@ -32,16 +32,14 @@
     <clipPath id="scanClip"><rect x="286" y="140" width="52" height="52" rx="8"/></clipPath>
 
     <style>
-      .fade      { opacity: 0; animation: fade .9s ease-out forwards; }
-      .d1 { animation-delay: .10s } .d2 { animation-delay: .22s }
-      .d3 { animation-delay: .34s } .d4 { animation-delay: .46s }
-
-      @keyframes fade { to { opacity: 1 } }
-
       /* The queue advancing: one number gives way to the next, forever. */
-      .tick { opacity: 0; animation: tick 9s ease-in-out infinite; }
-      .t1 { animation-delay: 0s }   .t2 { animation-delay: 3s }
-      .t3 { animation-delay: 6s }
+      /* The first number is painted; the other two are stacked behind it and
+         only appear once the loop is running. A frozen banner shows A-24. */
+      .tick { animation: tick 9s ease-in-out infinite; }
+      .t2, .t3 { opacity: 0 }
+      /* A negative delay starts the first number past its own fade-in, so a
+         banner frozen at zero still shows a number rather than an empty card. */
+      .t1 { animation-delay: -.7s } .t2 { animation-delay: 2.3s } .t3 { animation-delay: 5.3s }
       @keyframes tick {
         0%   { opacity: 0; transform: translateY(10px) }
         6%   { opacity: 1; transform: translateY(0) }
@@ -72,8 +70,8 @@
       }
 
       @media (prefers-reduced-motion: reduce) {
-        .tick, .fill, .pulse, .scan, .fade { animation: none; opacity: 1 }
-        .tick { opacity: 0 } .t1 { opacity: 1 }
+        .tick, .fill, .pulse, .scan { animation: none }
+        .t2, .t3 { opacity: 0 }
       }
     </style>
   </defs>
@@ -84,24 +82,24 @@
   <rect width="1200" height="320" fill="url(#washC)"/>
 
   <!-- Wordmark -->
-  <g class="fade d1" transform="translate(88 96)">
+  <g transform="translate(88 96)">
     <rect x="0" y="2" width="26" height="6" rx="3" fill="#FBFCFA" opacity=".85"/>
     <rect x="0" y="14" width="17" height="6" rx="3" fill="#FBFCFA" opacity=".55"/>
     <rect x="0" y="26" width="10" height="6" rx="3" fill="#FBFCFA" opacity=".35"/>
     <circle cx="42" cy="17" r="7.5" fill="#E0912F"/>
   </g>
 
-  <text class="fade d1" x="88" y="176" font-family="Georgia, 'Times New Roman', serif"
+  <text x="88" y="176" font-family="Georgia, 'Times New Roman', serif"
         font-size="62" fill="#FBFCFA" letter-spacing="1">Diiwaan</text>
 
-  <text class="fade d2" x="90" y="212" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif"
+  <text x="90" y="212" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif"
         font-size="17" fill="#8FA6B8" letter-spacing=".18em">QUEUE MANAGEMENT FOR SOMALI BUSINESSES</text>
 
-  <text class="fade d3" x="90" y="252" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif"
+  <text x="90" y="252" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif"
         font-size="15.5" fill="#C6D4DF">Print one QR code. Customers scan, take a number, and go sit down.</text>
 
   <!-- The ticket, with the queue moving through it -->
-  <g class="fade d2" transform="translate(748 62)">
+  <g transform="translate(748 62)">
     <rect x="0" y="0" width="364" height="196" rx="28" fill="#0B2233" stroke="#1E4055"/>
 
     <text x="28" y="42" font-family="system-ui, sans-serif" font-size="10.5"
@@ -117,7 +115,7 @@
     <g transform="translate(28 128)">
       <rect x="0" y="0" width="240" height="10" rx="5" fill="#16344A"/>
       <g clip-path="url(#lineClip)">
-        <rect class="fill" x="0" y="0" height="10" rx="5" fill="url(#line)"/>
+        <rect class="fill" x="0" y="0" width="112" height="10" rx="5" fill="url(#line)"/>
       </g>
     </g>
 
@@ -144,6 +142,6 @@
   </g>
 
   <circle class="pulse" cx="1112" cy="86" r="4" fill="#3AA69B"/>
-  <text class="fade d4" x="1064" y="90" font-family="system-ui, sans-serif" font-size="11"
+  <text x="1064" y="90" font-family="system-ui, sans-serif" font-size="11"
         fill="#3AA69B" letter-spacing=".14em">LIVE</text>
 </svg>
