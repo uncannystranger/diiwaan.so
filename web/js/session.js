@@ -1,0 +1,247 @@
+/* Owner identity in the browser.
+
+   Supabase Auth owns the credentials; this module speaks its REST API directly —
+   six endpoints, no SDK bundle. The long-lived refresh token is handed straight
+   to our backend, which seals it in an HttpOnly cookie, so no auth secret is ever
+   written to localStorage and an XSS bug cannot walk off with a session. The tab
+   keeps a short-lived access token in memory and renews it from the cookie on
+   page load and shortly before it expires. */
+
+let runtime = null;
+let renewTimer = null;
+const listeners = new Set();
+
+export const state = {
+  ready: false,
+  session: null,      // { accessToken, expiresAt, user } — memory only
+  user: null,         // our own MongoDB profile view
+  businesses: [],
+  needsVerification: false
+};
+
+const emit = () => listeners.forEach(fn => fn(state));
+export function onSessionChange(fn) {
+  listeners.add(fn);
+  return () => listeners.delete(fn);
+}
+
+export const accessToken = () => state.session?.accessToken || null;
+export const isSignedIn = () => Boolean(state.session);
+export const userId = () => state.session?.user?.id || null;
+export const appUrl = () => runtime?.appUrl || location.origin;
+export const googleAuthAvailable = () => Boolean(runtime?.googleAuth);
+
+/** Set when a provider sent us back with a refusal instead of a session. */
+export let oauthError = '';
+
+/* ---------- Supabase REST ---------- */
+
+async function gotrue(path, { method = 'POST', body, token } = {}) {
+  const response = await fetch(`${runtime.supabaseUrl}/auth/v1${path}`, {
+    method,
+    headers: {
+      apikey: runtime.supabaseAnonKey,
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {})
+    },
+    body: body === undefined ? undefined : JSON.stringify(body)
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(friendly(data));
+  return data;
+}
+
+function friendly(error) {
+  const message = error?.msg || error?.error_description || error?.message || 'Something went wrong.';
+  if (/invalid login credentials/i.test(message)) return 'That email and password do not match.';
+  if (/already registered|already exists/i.test(message)) return 'An account already uses that email.';
+  if (/email not confirmed/i.test(message)) return 'Confirm your email first — check your inbox.';
+  if (/password should be at least|weak/i.test(message)) return 'Use a longer password (at least 8 characters).';
+  if (/rate limit|too many|after \d+ seconds/i.test(message)) return 'Too many attempts. Wait a minute and try again.';
+  if (/invalid.*email|email address.*invalid/i.test(message)) return 'That email address is not valid.';
+  return message;
+}
+
+/* ---------- our session cookie ---------- */
+
+const sessionFetch = (method, body) => fetch('/api/auth/session', {
+  method,
+  credentials: 'same-origin',
+  headers: { 'Content-Type': 'application/json', 'X-Diiwaan-Client': 'web' },
+  body: body === undefined ? undefined : JSON.stringify(body)
+});
+
+function adopt(payload) {
+  state.session = {
+    accessToken: payload.accessToken,
+    expiresAt: Math.floor(Date.now() / 1000) + payload.expiresIn,
+    user: payload.user
+  };
+  clearTimeout(renewTimer);
+  // Renew a minute early so no request ever races the clock.
+  renewTimer = setTimeout(() => restore().catch(() => signOut()), Math.max(30, payload.expiresIn - 60) * 1000);
+  emit();
+  return state.session;
+}
+
+async function handOver(refreshToken) {
+  const response = await sessionFetch('POST', { refreshToken });
+  if (!response.ok) throw new Error('We could not start your session. Please try again.');
+  return adopt(await response.json());
+}
+
+/** Restores the session held in the HttpOnly cookie; null when there is none. */
+export async function restore() {
+  try {
+    const response = await sessionFetch('GET');
+    if (!response.ok || response.status === 204) return null;
+    return adopt(await response.json());
+  } catch {
+    return null;
+  }
+}
+
+/* ---------- lifecycle ---------- */
+
+export async function boot() {
+  runtime = await fetch('/api/config').then(r => r.json());
+
+  // Confirmation, password-reset and provider redirects all come back with
+  // their result in the fragment.
+  const fragment = new URLSearchParams(location.hash.replace(/^#\/?/, '').split('?').pop());
+  const linkRefresh = fragment.get('refresh_token');
+
+  if (fragment.get('error')) {
+    // A refusal at Google — a cancelled consent screen, or a provider that is
+    // not configured. Say so on the sign-in screen instead of dropping the
+    // person on the landing page with no explanation.
+    oauthError = friendly({ msg: fragment.get('error_description') || fragment.get('error') });
+    history.replaceState(null, '', `${location.pathname}#/signin`);
+  }
+
+  if (linkRefresh) {
+    const type = fragment.get('type');
+    await handOver(linkRefresh).catch(() => null);
+    history.replaceState(null, '', `${location.pathname}#/${type === 'recovery' ? 'reset' : 'queue'}`);
+  } else {
+    await restore();
+  }
+
+  state.ready = true;
+  emit();
+  return runtime;
+}
+
+/* ---------- credentials ---------- */
+
+export async function signUp({ email, password, name }) {
+  const data = await gotrue('/signup', {
+    body: {
+      email,
+      password,
+      data: { name },
+      // Where Supabase sends the confirmation link back to.
+      gotrue_meta_security: {},
+      options: undefined
+    }
+  });
+
+  state.needsVerification = !data.access_token;
+  if (data.refresh_token) await handOver(data.refresh_token);
+  emit();
+  return { needsVerification: state.needsVerification };
+}
+
+/**
+ * Hands the browser to Supabase's provider flow. It returns to this app with a
+ * refresh token in the fragment, which `boot()` already knows how to adopt — the
+ * same path a confirmation link takes.
+ */
+export function startOAuth(provider = 'google') {
+  if (!runtime) throw new Error('Not ready yet.');
+  const back = new URL(appUrl());
+  back.hash = '#/queue';
+  const url = new URL(`${runtime.supabaseUrl}/auth/v1/authorize`);
+  url.searchParams.set('provider', provider);
+  url.searchParams.set('redirect_to', back.toString());
+  location.assign(url.toString());
+}
+
+export async function signIn({ email, password }) {
+  const data = await gotrue('/token?grant_type=password', { body: { email, password } });
+  state.needsVerification = false;
+  await handOver(data.refresh_token);
+  return state.session;
+}
+
+/**
+ * Signing out is local first: the tab forgets the session in the same tick as the
+ * click, so the interface can move immediately. Revoking the cookie and the
+ * Supabase token happens on the way out — the returned promise is there for
+ * callers that want to know when it finished, not for the person leaving.
+ */
+export function signOut() {
+  clearTimeout(renewTimer);
+  state.session = null;
+  state.user = null;
+  state.businesses = [];
+  state.needsVerification = false;
+  emit();
+  return sessionFetch('DELETE').catch(() => {});
+}
+
+export async function sendReset(email) {
+  await gotrue('/recover', { body: { email, redirect_to: `${location.origin}/#/reset` } });
+}
+
+export async function resendVerification(email) {
+  await gotrue('/resend', { body: { type: 'signup', email } });
+}
+
+export async function updatePassword(password) {
+  await gotrue('/user', { method: 'PUT', body: { password }, token: accessToken() });
+}
+
+/* ---------- branding uploads ---------- */
+
+const EXTENSIONS = { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp', 'image/svg+xml': 'svg' };
+
+/**
+ * Uploads branding art straight to Supabase Storage as the signed-in owner.
+ * The bucket's policies only allow writes inside a folder named after that
+ * owner's user id, so one business can never overwrite another's artwork.
+ */
+export async function uploadBrandingImage(file, { slug = 'logo' } = {}) {
+  const id = userId();
+  if (!id) throw new Error('Sign in again to upload an image.');
+  const extension = EXTENSIONS[file.type];
+  if (!extension) throw new Error('Use a PNG, JPEG, WebP or SVG image.');
+
+  const bucket = runtime.brandingBucket || 'branding';
+  const path = `${id}/${slug}-${Date.now()}.${extension}`;
+
+  const response = await fetch(`${runtime.supabaseUrl}/storage/v1/object/${bucket}/${path}`, {
+    method: 'POST',
+    headers: {
+      apikey: runtime.supabaseAnonKey,
+      Authorization: `Bearer ${accessToken()}`,
+      'Content-Type': file.type,
+      'x-upsert': 'true',
+      'cache-control': '31536000'
+    },
+    body: file
+  });
+  if (!response.ok) {
+    const detail = await response.json().catch(() => ({}));
+    throw new Error(friendly(detail) || 'The image could not be uploaded.');
+  }
+  return `${runtime.supabaseUrl}/storage/v1/object/public/${bucket}/${path}`;
+}
+
+/** Called after any sign-in: our API supplies the profile and businesses. */
+export function setAccount({ user, businesses }) {
+  state.user = user;
+  state.businesses = businesses;
+  state.needsVerification = user ? user.emailVerified === false : false;
+  emit();
+}

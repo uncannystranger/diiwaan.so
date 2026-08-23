@@ -1,0 +1,149 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 320" width="1200" height="320" role="img"
+     aria-label="Diiwaan — a queue your customers join by scanning">
+  <title>Diiwaan — a queue your customers join by scanning</title>
+
+  <defs>
+    <!-- The house palette: lamp amber over harbour navy. -->
+    <linearGradient id="ground" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%"   stop-color="#04121D"/>
+      <stop offset="55%"  stop-color="#0A1E2E"/>
+      <stop offset="100%" stop-color="#04121D"/>
+    </linearGradient>
+
+    <radialGradient id="washA" cx="12%" cy="0%" r="70%">
+      <stop offset="0%"   stop-color="#25506E" stop-opacity=".55"/>
+      <stop offset="100%" stop-color="#25506E" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="washB" cx="92%" cy="10%" r="62%">
+      <stop offset="0%"   stop-color="#3AA69B" stop-opacity=".30"/>
+      <stop offset="100%" stop-color="#3AA69B" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="washC" cx="50%" cy="115%" r="70%">
+      <stop offset="0%"   stop-color="#E0912F" stop-opacity=".18"/>
+      <stop offset="100%" stop-color="#E0912F" stop-opacity="0"/>
+    </radialGradient>
+
+    <linearGradient id="line" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%"   stop-color="#E0912F" stop-opacity=".35"/>
+      <stop offset="100%" stop-color="#E0912F"/>
+    </linearGradient>
+
+    <clipPath id="lineClip"><rect x="0" y="0" width="240" height="10" rx="5"/></clipPath>
+    <clipPath id="scanClip"><rect x="286" y="140" width="52" height="52" rx="8"/></clipPath>
+
+    <style>
+      .fade      { opacity: 0; animation: fade .9s ease-out forwards; }
+      .d1 { animation-delay: .10s } .d2 { animation-delay: .22s }
+      .d3 { animation-delay: .34s } .d4 { animation-delay: .46s }
+
+      @keyframes fade { to { opacity: 1 } }
+
+      /* The queue advancing: one number gives way to the next, forever. */
+      .tick { opacity: 0; animation: tick 9s ease-in-out infinite; }
+      .t1 { animation-delay: 0s }   .t2 { animation-delay: 3s }
+      .t3 { animation-delay: 6s }
+      @keyframes tick {
+        0%   { opacity: 0; transform: translateY(10px) }
+        6%   { opacity: 1; transform: translateY(0) }
+        30%  { opacity: 1; transform: translateY(0) }
+        36%  { opacity: 0; transform: translateY(-10px) }
+        100% { opacity: 0; transform: translateY(-10px) }
+      }
+
+      /* The line someone is standing in, filling towards their turn. */
+      .fill { animation: fill 9s cubic-bezier(.2,.8,.2,1) infinite; }
+      @keyframes fill {
+        0%   { width: 26px }
+        30%  { width: 112px }
+        60%  { width: 178px }
+        88%  { width: 240px }
+        100% { width: 240px }
+      }
+
+      .pulse { animation: pulse 3s ease-in-out infinite; transform-origin: center; }
+      @keyframes pulse { 0%,100% { opacity: .55 } 50% { opacity: 1 } }
+
+      .scan { animation: scan 3.4s cubic-bezier(.4,0,.2,1) infinite; }
+      @keyframes scan {
+        0%, 12%   { transform: translateY(0);  opacity: 0 }
+        18%       { opacity: 1 }
+        82%       { opacity: 1 }
+        88%, 100% { transform: translateY(50px); opacity: 0 }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        .tick, .fill, .pulse, .scan, .fade { animation: none; opacity: 1 }
+        .tick { opacity: 0 } .t1 { opacity: 1 }
+      }
+    </style>
+  </defs>
+
+  <rect width="1200" height="320" fill="url(#ground)"/>
+  <rect width="1200" height="320" fill="url(#washA)"/>
+  <rect width="1200" height="320" fill="url(#washB)"/>
+  <rect width="1200" height="320" fill="url(#washC)"/>
+
+  <!-- Wordmark -->
+  <g class="fade d1" transform="translate(88 96)">
+    <rect x="0" y="2" width="26" height="6" rx="3" fill="#FBFCFA" opacity=".85"/>
+    <rect x="0" y="14" width="17" height="6" rx="3" fill="#FBFCFA" opacity=".55"/>
+    <rect x="0" y="26" width="10" height="6" rx="3" fill="#FBFCFA" opacity=".35"/>
+    <circle cx="42" cy="17" r="7.5" fill="#E0912F"/>
+  </g>
+
+  <text class="fade d1" x="88" y="176" font-family="Georgia, 'Times New Roman', serif"
+        font-size="62" fill="#FBFCFA" letter-spacing="1">Diiwaan</text>
+
+  <text class="fade d2" x="90" y="212" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif"
+        font-size="17" fill="#8FA6B8" letter-spacing=".18em">QUEUE MANAGEMENT FOR SOMALI BUSINESSES</text>
+
+  <text class="fade d3" x="90" y="252" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif"
+        font-size="15.5" fill="#C6D4DF">Print one QR code. Customers scan, take a number, and go sit down.</text>
+
+  <!-- The ticket, with the queue moving through it -->
+  <g class="fade d2" transform="translate(748 62)">
+    <rect x="0" y="0" width="364" height="196" rx="28" fill="#0B2233" stroke="#1E4055"/>
+
+    <text x="28" y="42" font-family="system-ui, sans-serif" font-size="10.5"
+          fill="#8FA6B8" letter-spacing=".22em">NOW SERVING</text>
+
+    <g font-family="system-ui, sans-serif" font-size="52" font-weight="600" fill="#FBFCFA">
+      <text class="tick t1" x="28" y="102">A-24</text>
+      <text class="tick t2" x="28" y="102">A-25</text>
+      <text class="tick t3" x="28" y="102">A-26</text>
+    </g>
+
+    <!-- the line, filling -->
+    <g transform="translate(28 128)">
+      <rect x="0" y="0" width="240" height="10" rx="5" fill="#16344A"/>
+      <g clip-path="url(#lineClip)">
+        <rect class="fill" x="0" y="0" height="10" rx="5" fill="url(#line)"/>
+      </g>
+    </g>
+
+    <text x="28" y="168" font-family="system-ui, sans-serif" font-size="12.5" fill="#8FA6B8">
+      4 people ahead · about 12 min
+    </text>
+
+    <!-- a code being scanned -->
+    <g clip-path="url(#scanClip)">
+      <rect class="scan" x="286" y="140" width="52" height="2.5" fill="#3AA69B" opacity="0"/>
+    </g>
+    <g transform="translate(286 140)" opacity=".9">
+      <rect x="0" y="0" width="52" height="52" rx="8" fill="#FBFCFA"/>
+      <g fill="#04121D">
+        <rect x="7"  y="7"  width="13" height="13" rx="2"/>
+        <rect x="32" y="7"  width="13" height="13" rx="2"/>
+        <rect x="7"  y="32" width="13" height="13" rx="2"/>
+        <rect x="26" y="26" width="5"  height="5"/>
+        <rect x="35" y="30" width="5"  height="5"/>
+        <rect x="30" y="39" width="5"  height="5"/>
+        <rect x="39" y="43" width="5"  height="5"/>
+      </g>
+    </g>
+  </g>
+
+  <circle class="pulse" cx="1112" cy="86" r="4" fill="#3AA69B"/>
+  <text class="fade d4" x="1064" y="90" font-family="system-ui, sans-serif" font-size="11"
+        fill="#3AA69B" letter-spacing=".14em">LIVE</text>
+</svg>

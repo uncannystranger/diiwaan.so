@@ -1,0 +1,34 @@
+{
+  "name": "diiwaan",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Diiwaan — multi-tenant queue management. Supabase Auth + MongoDB.",
+  "type": "module",
+  "scripts": {
+    "dev": "node server/src/index.js",
+    "start": "node server/src/index.js",
+    "seed": "node server/scripts/seed-development-data.js",
+    "test:api": "node server/test/api.test.mjs",
+    "test:qr": "node web/test/qr-selftest.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "cookie-parser": "^1.4.7",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "express-rate-limit": "^7.4.0",
+    "helmet": "^7.1.0",
+    "jose": "^5.9.0",
+    "mongodb": "^6.9.0",
+    "multer": "^2.2.0",
+    "pdfkit": "^0.19.1",
+    "web-push": "^3.6.7",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "mongodb-memory-server": "^10.0.0"
+  }
+}
