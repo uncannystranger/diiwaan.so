@@ -65,7 +65,13 @@ export function assertConfig() {
   const missing = [];
   if (!config.supabase.url) missing.push('SUPABASE_URL');
   if (!config.supabase.anonKey) missing.push('SUPABASE_ANON_KEY');
-  if (config.env === 'production' && process.env.SESSION_SECRET === undefined) missing.push('SESSION_SECRET');
+  if (config.env === 'production') {
+    if (process.env.SESSION_SECRET === undefined) missing.push('SESSION_SECRET');
+    /* In development an absent URI starts a local mongod; a deployed instance
+       has nowhere to put one, so name it here rather than failing later with a
+       connection error nobody can act on. */
+    if (!config.mongo.uri) missing.push('MONGODB_URI');
+  }
   if (missing.length) {
     throw new Error(
       `Missing environment variables: ${missing.join(', ')}. Copy .env.example to .env and fill it in.`
