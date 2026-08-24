@@ -32,7 +32,10 @@ jobs:
           node-version: '20'
           cache: npm
 
-      - run: npm ci
+      # --ignore-scripts skips mongodb-memory-server's postinstall, which
+      # downloads a mongod binary. Nothing checked here needs a database: the
+      # parse check, the QR round-trips and the language check are all pure.
+      - run: npm ci --ignore-scripts
 
       # Every module has to at least parse. Cheap, and it catches the kind of
       # mistake that would otherwise reach a browser.
