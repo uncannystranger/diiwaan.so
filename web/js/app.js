@@ -1817,10 +1817,6 @@ document.addEventListener('visibilitychange', () => {
   render();
 });
 
-if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
-  navigator.serviceWorker.register('/sw.js').catch(() => { /* offline shell is a bonus */ });
-}
-
 /* Whatever happens during boot, the app must end up rendering something: a
    failure here used to be invisible, and with the render gate in place it would
    leave the splash on screen forever. */

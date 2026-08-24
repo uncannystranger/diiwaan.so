@@ -42,4 +42,18 @@
     /* Private mode, a corrupt value, or storage turned off: the stylesheet's
        own defaults still render a complete page. */
   }
+
+  /* Registered here rather than from the app, because the worker's job is to
+     serve the app when the network will not. Waiting for app.js to arrive
+     before installing the thing that rescues app.js is the wrong order. */
+  try {
+    var secure = location.protocol === 'https:'
+      || location.hostname === 'localhost'
+      || location.hostname === '127.0.0.1';
+    if ('serviceWorker' in navigator && secure) {
+      window.addEventListener('load', function () {
+        navigator.serviceWorker.register('/sw.js').catch(function () {});
+      });
+    }
+  } catch (e) { /* the app works without it */ }
 })();
