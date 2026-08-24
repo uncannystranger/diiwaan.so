@@ -21,7 +21,8 @@ export const collections = {
   invitations: 'invitations',
   events: 'analytics_events',
   audit: 'audit_logs',
-  pushSubscriptions: 'push_subscriptions'
+  pushSubscriptions: 'push_subscriptions',
+  brandingAssets: 'branding_assets'
 };
 
 const objectString = (extra = {}) => ({ bsonType: 'string', ...extra });
@@ -32,9 +33,14 @@ const number = (extra = {}) => ({ bsonType: ['int', 'long', 'double'], ...extra 
 const schemas = {
   [collections.profiles]: {
     bsonType: 'object',
-    required: ['supabaseUserId', 'email', 'createdAt'],
+    /* Keyed by the Firebase uid. `legacyUserId` holds the id an account carried
+       before Firebase, so the businesses and seats written against it are still
+       found. Neither is required on its own: a new account has only the first,
+       an untouched old one only the second. */
+    required: ['email', 'createdAt'],
     properties: {
-      supabaseUserId: objectString(),
+      firebaseUid: objectString(),
+      legacyUserId: objectString(),
       email: objectString(),
       name: objectString(),
       phone: objectString(),
@@ -168,6 +174,22 @@ const schemas = {
       createdAt: { bsonType: 'date' }
     }
   },
+  /* Branding artwork, stored beside the business it belongs to. `mime` is the
+     type this server sniffed from the file's own bytes, never the one the
+     uploader declared — it is what the image is later served as. */
+  [collections.brandingAssets]: {
+    bsonType: 'object',
+    required: ['businessId', 'kind', 'mime', 'data', 'createdAt'],
+    properties: {
+      businessId: { bsonType: 'objectId' },
+      kind: objectString({ enum: ['logo', 'favicon'] }),
+      mime: objectString({ enum: ['image/png', 'image/jpeg', 'image/webp'] }),
+      bytes: number(),
+      data: { bsonType: 'binData' },
+      uploadedBy: objectString(),
+      createdAt: { bsonType: 'date' }
+    }
+  },
   [collections.pushSubscriptions]: {
     bsonType: 'object',
     required: ['businessId', 'ticketId', 'endpoint', 'createdAt'],
@@ -197,11 +219,16 @@ const schemas = {
 
 async function ensureCollection(name) {
   const existing = await db.listCollections({ name }).toArray();
-  const validator = { $jsonSchema: schemas[name] };
+  /* A collection with no declared schema gets no validator at all. Sending
+     `{ $jsonSchema: undefined }` is not "no rules" to MongoDB — it is a type
+     error that fails the whole migration, and with it every request behind it. */
+  const options = schemas[name]
+    ? { validator: { $jsonSchema: schemas[name] }, validationLevel: 'moderate' }
+    : {};
   if (existing.length === 0) {
-    await db.createCollection(name, { validator, validationLevel: 'moderate' });
-  } else {
-    await db.command({ collMod: name, validator, validationLevel: 'moderate' });
+    await db.createCollection(name, options);
+  } else if (schemas[name]) {
+    await db.command({ collMod: name, ...options });
   }
 }
 
@@ -225,9 +252,17 @@ async function ensure(name, specs) {
 }
 
 async function ensureIndexes() {
+  /* Each id still identifies exactly one profile, but only where it exists — a
+     plain unique index would read every profile without a legacyUserId as a
+     duplicate null and refuse the second one. */
   await ensure(collections.profiles, [
-    { key: { supabaseUserId: 1 }, unique: true },
+    { key: { firebaseUid: 1 }, unique: true, partialFilterExpression: { firebaseUid: { $type: 'string' } } },
+    { key: { legacyUserId: 1 }, unique: true, partialFilterExpression: { legacyUserId: { $type: 'string' } } },
     { key: { email: 1 } }
+  ]);
+  await ensure(collections.brandingAssets, [
+    { key: { businessId: 1 } },
+    { key: { createdAt: -1 } }
   ]);
   await ensure(collections.businesses, [
     { key: { slug: 1 }, unique: true },
@@ -360,7 +395,27 @@ export async function connect() {
 
 async function runMigrations() {
   for (const name of Object.values(collections)) await ensureCollection(name);
+  await renameLegacyUserId();
   await ensureIndexes();
+}
+
+/* Accounts that predate Firebase stored their id under `supabaseUserId`. The
+   value is what businesses and seats were written against, so it is carried
+   over untouched — only the field it lives in is renamed. Nobody's identifier
+   changes, and running this a second time finds nothing left to do. */
+async function renameLegacyUserId() {
+  try {
+    const result = await db.collection(collections.profiles).updateMany(
+      { supabaseUserId: { $exists: true } },
+      { $rename: { supabaseUserId: 'legacyUserId' } }
+    );
+    if (result.modifiedCount) {
+      console.log(`[db] carried ${result.modifiedCount} profile(s) over to legacyUserId`);
+    }
+    await db.collection(collections.profiles).dropIndex('supabaseUserId_1').catch(() => {});
+  } catch (error) {
+    console.warn('[db] could not rename supabaseUserId:', error.message);
+  }
 }
 
 export const getDb = () => {

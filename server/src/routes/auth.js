@@ -1,4 +1,4 @@
-/* Identity endpoints. Supabase owns authentication; this file only mirrors the
+/* Identity endpoints. Firebase owns authentication; this file only mirrors the
    verified user into MongoDB and reports what that user may act on. */
 
 import { Router } from 'express';
@@ -7,7 +7,6 @@ import { requireUser, withProfile, listBusinessesFor } from '../middleware/auth.
 import { parse } from '../lib/validate.js';
 import { z } from 'zod';
 import rateLimit from 'express-rate-limit';
-import { fetchUser, verifyAccessToken } from '../lib/supabase.js';
 import { HttpError } from '../lib/errors.js';
 import {
   setSessionCookie, clearSessionCookie, readSessionCookie,
@@ -20,7 +19,7 @@ const sessionLimiter = rateLimit({ windowMs: 60_000, limit: 30, standardHeaders:
 
 /* ---------- session ----------
 
-   The browser signs in with Supabase directly, then hands the refresh token here
+   The browser signs in with Firebase directly, then hands the refresh token here
    once. From that moment the long-lived secret lives in an HttpOnly cookie and
    the tab keeps only an in-memory access token, which this endpoint re-mints. */
 
@@ -44,10 +43,10 @@ router.post('/session', sessionLimiter, requireClientHeader, async (req, res, ne
 /** Restores a session on page load, or renews one that is about to expire. */
 router.get('/session', sessionLimiter, requireClientHeader, async (req, res, next) => {
   try {
-    const refreshToken = readSessionCookie(req);
-    if (!refreshToken) return res.status(204).end();
+    const stored = readSessionCookie(req);
+    if (!stored) return res.status(204).end();
     try {
-      const data = await exchangeRefreshToken(refreshToken);
+      const data = await exchangeRefreshToken(stored);
       setSessionCookie(res, data.refresh_token);
       res.json(sessionPayload(data));
     } catch (error) {
@@ -59,21 +58,10 @@ router.get('/session', sessionLimiter, requireClientHeader, async (req, res, nex
 
 router.delete('/session', sessionLimiter, requireClientHeader, async (req, res, next) => {
   try {
-    const refreshToken = readSessionCookie(req);
     clearSessionCookie(res);
-    // Best effort: ask Supabase to revoke it too, but never fail the sign-out.
-    if (refreshToken) {
-      try {
-        const { access_token: accessToken } = await exchangeRefreshToken(refreshToken);
-        await fetch(`${process.env.SUPABASE_URL}/auth/v1/logout`, {
-          method: 'POST',
-          headers: {
-            apikey: process.env.SUPABASE_ANON_KEY,
-            Authorization: `Bearer ${accessToken}`
-          }
-        });
-      } catch { /* already invalid */ }
-    }
+    /* Dropping the cookie is the sign-out. Firebase has no revoke endpoint that
+       works without a service account, and the id token it held expires within
+       the hour on its own — so there is nothing to wait for on the way out. */
     res.status(204).end();
   } catch (error) { next(error); }
 });
@@ -89,12 +77,11 @@ router.get('/me', requireUser, withProfile, async (req, res, next) => {
   try {
     const email = (req.user.email || '').toLowerCase();
 
-    // An invited member signs up with the invited address. The seat only binds
-    // once Supabase says that mailbox is confirmed — otherwise anyone who knows
-    // a colleague's address could register it and inherit their role.
-    const verified = req.user.emailVerified === true
-      || Boolean((await fetchUser((req.get('authorization') || '').slice(7).trim()))?.email_confirmed_at);
-    if (email && verified) {
+    /* An invited member signs up with the invited address. The seat only binds
+       once Firebase says that mailbox is confirmed — otherwise anyone who knows
+       a colleague's address could register it and inherit their role. The claim
+       is inside the signed token, so there is nothing to go and ask. */
+    if (email && req.user.emailVerified === true) {
       await col(collections.members).updateMany(
         { email, status: 'invited' },
         { $set: { userId: req.user.id, status: 'active', updatedAt: new Date() } }
@@ -105,16 +92,13 @@ router.get('/me', requireUser, withProfile, async (req, res, next) => {
       );
     }
 
-    const businesses = await listBusinessesFor(req.user.id);
-    const account = req.user.emailVerified === undefined
-      ? await fetchUser((req.get('authorization') || '').slice(7).trim())
-      : null;
+    const businesses = await listBusinessesFor(req.authIds || [req.user.id]);
 
     res.json({
       user: {
         id: req.user.id,
-        email: req.user.email || account?.email || '',
-        emailVerified: req.user.emailVerified ?? Boolean(account?.email_confirmed_at || account?.confirmed_at),
+        email: req.user.email || '',
+        emailVerified: req.user.emailVerified === true,
         name: req.profile.name || '',
         phone: req.profile.phone || '',
         avatar: req.profile.avatar || ''
@@ -134,16 +118,25 @@ router.get('/me', requireUser, withProfile, async (req, res, next) => {
 router.patch('/me', requireUser, withProfile, async (req, res, next) => {
   try {
     const input = parse(profileSchema, req.body);
+    /* withProfile has already found or created this profile, so update it by its
+       own _id. Keying off a uid field here is what broke sign-up: a brand-new
+       account matched nothing, the update returned null, and reading a name off
+       null threw a 500 in the middle of creating an account. */
     const profile = await col(collections.profiles).findOneAndUpdate(
-      { supabaseUserId: req.user.id },
+      { _id: req.profile._id },
       { $set: { ...input, updatedAt: new Date() } },
       { returnDocument: 'after' }
     );
+    if (!profile) throw new HttpError(404, 'That account no longer exists.');
+
+    // Every id this person is known by, so a rename reaches older seats too.
     await col(collections.members).updateMany(
-      { userId: req.user.id },
+      { userId: { $in: req.authIds?.length ? req.authIds : [req.user.id] } },
       { $set: { name: profile.name || '', updatedAt: new Date() } }
     );
-    res.json({ user: { id: req.user.id, email: req.user.email, name: profile.name, phone: profile.phone } });
+    res.json({
+      user: { id: req.user.id, email: req.user.email, name: profile.name || '', phone: profile.phone || '' }
+    });
   } catch (error) { next(error); }
 });
 

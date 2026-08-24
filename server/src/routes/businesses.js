@@ -13,14 +13,16 @@ import {
 import { DEFAULT_BRANDING, DEFAULT_CUSTOMER_EXPERIENCE, DEFAULT_QR, DEFAULT_QUEUE_SETTINGS } from '../lib/defaults.js';
 import { config } from '../config.js';
 
-/* A logo URL arrives from the browser after it uploads to storage. Accept only
-   our own bucket: an arbitrary URL here would let anyone point a business's logo
-   at an offsite tracker that every customer of that queue would then load. */
-const STORAGE_PREFIX = `${config.supabase.url}/storage/v1/object/public/${config.supabase.brandingBucket}/`;
+/* A logo URL arrives from the browser after it uploads. Accept only paths this
+   app serves itself: an arbitrary URL here would let anyone point a business's
+   logo at an offsite tracker that every customer of that queue would then load.
+   Anchored at the start and with no '//' allowed, so '/api/branding/../..' or a
+   protocol-relative '//evil.example' cannot slip through. */
+const STORAGE_PREFIX = '/api/branding/';
 const assertOwnStorage = url => {
-  if (url && !url.startsWith(STORAGE_PREFIX)) {
-    throw new HttpError(422, 'Images must be uploaded through Diiwaan.');
-  }
+  const ok = !url
+    || (url.startsWith(STORAGE_PREFIX) && !url.includes('..') && !url.slice(1).includes('//'));
+  if (!ok) throw new HttpError(422, 'Images must be uploaded through Diiwaan.');
 };
 import * as queueService from '../services/queue.js';
 import * as analytics from '../services/analytics.js';
@@ -64,9 +66,10 @@ async function uniqueSlug(candidate) {
 
 /* ---------- collection ---------- */
 
-router.get('/', requireUser, async (req, res, next) => {
+/* withProfile is what resolves the linked identities this listing matches on. */
+router.get('/', requireUser, withProfile, async (req, res, next) => {
   try {
-    const businesses = await listBusinessesFor(req.user.id);
+    const businesses = await listBusinessesFor(req.authIds || [req.user.id]);
     res.json({ businesses: businesses.map(b => shape(b, b.role)) });
   } catch (error) { next(error); }
 });
