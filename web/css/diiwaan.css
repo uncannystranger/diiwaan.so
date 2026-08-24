@@ -2677,7 +2677,14 @@ html.retint, html.retint *, html.retint *::before, html.retint *::after {
 /* On a narrow screen the two entry actions stop competing for one line: the
    primary label is a full sentence in Somali and was being clipped by its own
    button. They stack, primary first, both full width. */
+/* Wide enough for both, they sit side by side with the primary given the
+   greater share. Narrower than that they stack, primary first — the label is a
+   full sentence in Somali and was being clipped by its own button. */
+.entry-cta { text-align: center; white-space: nowrap; }
+.entry-cta--primary { flex: 2 1 240px; }
+.entry-cta:not(.entry-cta--primary) { flex: 1 1 140px; }
+
 @media (max-width: 560px) {
   .stage--entry .btn-row { flex-direction: column; align-items: stretch; }
-  .stage--entry .btn-row > .btn { flex: 1 1 auto; width: 100%; white-space: normal; }
+  .stage--entry .btn-row > .entry-cta { flex: 0 0 auto; width: 100%; }
 }

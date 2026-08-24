@@ -67,8 +67,8 @@ export function landingView() {
           <h1 class="serif">${t('auth.headline')}</h1>
           <p class="lead" style="max-width:52ch">${t('auth.lead')}</p>
           <div class="btn-row" style="max-width:520px">
-            <a class="btn nowrap" href="#/signup" style="flex:2 1 240px;text-align:center">${t('auth.createQueue')}</a>
-            <a class="btn btn--ghost nowrap" href="#/signin" style="flex:1 1 140px;text-align:center">${t('auth.signIn')}</a>
+            <a class="btn entry-cta entry-cta--primary" href="#/signup">${t('auth.createQueue')}</a>
+            <a class="btn btn--ghost entry-cta" href="#/signin">${t('auth.signIn')}</a>
           </div>
           <div class="row-flex gap-24 mt-8">
             ${[[t('auth.freeTitle'), t('auth.freeHint')],
