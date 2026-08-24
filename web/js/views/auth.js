@@ -274,6 +274,7 @@ export function verifyView(ui, email) {
             <button class="btn btn--quiet btn--auto" data-action="resend-verification" ${ui.busy ? 'disabled' : ''}>${t('auth.sendAgain')}</button>
             <button class="btn btn--quiet btn--auto" data-action="check-verification">${t('auth.iConfirmed')}</button>
           </div>
+          <p class="hint" style="line-height:1.55">${t('auth.noEmailHelp')}</p>
           <button class="btn btn--link" data-action="sign-out">${t('auth.differentAccount')}</button>
         </div>
       </div>
