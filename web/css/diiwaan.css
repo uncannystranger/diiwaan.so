@@ -2685,6 +2685,12 @@ html.retint, html.retint *, html.retint *::before, html.retint *::after {
 .entry-cta:not(.entry-cta--primary) { flex: 1 1 140px; }
 
 @media (max-width: 560px) {
-  .stage--entry .btn-row { flex-direction: column; align-items: stretch; }
+  /* nowrap matters as much as the direction: a wrapping column flexes into two
+     columns, which is exactly the side-by-side layout this is meant to undo. */
+  .stage--entry .btn-row {
+    flex-direction: column;
+    flex-wrap: nowrap;
+    align-items: stretch;
+  }
   .stage--entry .btn-row > .entry-cta { flex: 0 0 auto; width: 100%; }
 }
