@@ -2673,3 +2673,11 @@ html.retint, html.retint *, html.retint *::before, html.retint *::after {
   .stage--entry .field textarea:focus { transform: none; }
   .field--bad input, .field--bad textarea, .error-text { animation: none; }
 }
+
+/* On a narrow screen the two entry actions stop competing for one line: the
+   primary label is a full sentence in Somali and was being clipped by its own
+   button. They stack, primary first, both full width. */
+@media (max-width: 560px) {
+  .stage--entry .btn-row { flex-direction: column; align-items: stretch; }
+  .stage--entry .btn-row > .btn { flex: 1 1 auto; width: 100%; white-space: normal; }
+}
