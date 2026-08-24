@@ -1,12 +1,13 @@
 /* Session cookies.
 
-   Supabase issues the tokens; this module decides where they live. The refresh
+   Firebase issues the tokens; this module decides where they live. The refresh
    token — the only long-lived secret — is sealed with AES-256-GCM and stored in
    an HttpOnly, SameSite cookie that JavaScript cannot read, so an XSS bug cannot
    walk off with a session. The short-lived access token is handed to the tab in
    memory only, and is re-minted from the cookie on every page load. */
 
 import crypto from 'node:crypto';
+import { decodeJwt } from 'jose';
 import { config } from '../config.js';
 import { HttpError } from './errors.js';
 
@@ -35,7 +36,7 @@ function unseal(sealed) {
 }
 
 export function setSessionCookie(res, refreshToken) {
-  res.cookie(COOKIE_NAME, seal(refreshToken), {
+  res.cookie(COOKIE_NAME, seal(`firebase:${refreshToken}`), {
     httpOnly: true,
     sameSite: 'lax',
     secure: config.env === 'production',
@@ -48,9 +49,14 @@ export function clearSessionCookie(res) {
   res.clearCookie(COOKIE_NAME, { path: '/api/auth', httpOnly: true, sameSite: 'lax', secure: config.env === 'production' });
 }
 
+/* Cookies minted before Firebase held a token no endpoint here can spend any
+   more. They read as null, which signs that tab out cleanly instead of failing
+   on an exchange nobody can explain. */
 export const readSessionCookie = req => {
   const sealed = req.cookies?.[COOKIE_NAME];
-  return sealed ? unseal(sealed) : null;
+  const value = sealed ? unseal(sealed) : null;
+  const match = value && /^firebase:(.+)$/s.exec(value);
+  return match ? match[1] : null;
 };
 
 /* Refresh tokens rotate, so a token can only be spent once. Two tabs restoring
@@ -68,10 +74,7 @@ function rememberExchange(spent, data) {
   }
 }
 
-/**
- * Exchanges a refresh token with Supabase for a fresh pair. Supabase rotates the
- * refresh token, so the caller must always write the new one back to the cookie.
- */
+/** Exchanges a refresh token for a fresh id token, once per token per moment. */
 const inFlight = new Map(); // refresh token -> promise, so parallel tabs share one exchange
 
 export async function exchangeRefreshToken(refreshToken) {
@@ -84,20 +87,38 @@ export async function exchangeRefreshToken(refreshToken) {
   return pending;
 }
 
-async function performExchange(refreshToken) {
+const claimedEmail = token => {
+  try { return decodeJwt(token).email || ''; } catch { return ''; }
+};
 
-  const response = await fetch(`${config.supabase.url}/auth/v1/token?grant_type=refresh_token`, {
-    method: 'POST',
-    headers: { apikey: config.supabase.anonKey, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ refresh_token: refreshToken })
-  });
+/* Firebase's token endpoint takes form encoding and answers in snake_case of a
+   different shape. Unlike GoTrue it does not rotate the refresh token — the same
+   one comes back — but the cookie is rewritten regardless so its expiry slides
+   forward and an active owner is never signed out mid-shift. */
+async function performExchange(refreshToken) {
+  const response = await fetch(
+    `https://securetoken.googleapis.com/v1/token?key=${config.firebase.apiKey}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ grant_type: 'refresh_token', refresh_token: refreshToken })
+    }
+  );
   if (!response.ok) throw new HttpError(401, 'Your session has expired — please sign in again.');
   const data = await response.json();
-  if (!data.access_token || !data.refresh_token) {
-    throw new HttpError(401, 'Your session has expired — please sign in again.');
-  }
-  rememberExchange(refreshToken, data);
-  return data;
+  if (!data.id_token) throw new HttpError(401, 'Your session has expired — please sign in again.');
+
+  const shaped = {
+    access_token: data.id_token,
+    refresh_token: data.refresh_token || refreshToken,
+    expires_in: Number(data.expires_in || 3600),
+    /* The refresh response names only the uid; the address is inside the token
+       it just issued. Reading it here spares the browser a lookup round-trip.
+       This is display data — nothing is authorised on it. */
+    user: { id: data.user_id, email: claimedEmail(data.id_token) }
+  };
+  rememberExchange(refreshToken, shaped);
+  return shaped;
 }
 
 /* A session cookie is only honoured on requests that carry this header. Browsers

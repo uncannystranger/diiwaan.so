@@ -29,16 +29,22 @@ export const config = {
   port: Number(process.env.PORT || 4173),
   appUrl: process.env.APP_URL || `http://localhost:${Number(process.env.PORT || 4173)}`,
 
-  supabase: {
-    url: (process.env.SUPABASE_URL || '').replace(/\/+$/, ''),
-    anonKey: process.env.SUPABASE_ANON_KEY || '',
-    serviceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY || '',
-    brandingBucket: process.env.SUPABASE_BRANDING_BUCKET || 'branding',
-    /* Google sign-in is a Supabase provider, enabled in the Supabase dashboard.
-       The browser cannot tell whether it is configured there, so this flag says
-       whether to offer the button — offering one that lands on a provider error
-       is worse than not offering it. */
-    googleAuth: String(process.env.SUPABASE_GOOGLE_AUTH || '').toLowerCase() === 'true'
+  /* Firebase is the only identity provider. The project id is all the server
+     needs to verify a token — Google publishes the signing keys — and the web
+     api key is public by design, handed to the browser to talk to Firebase
+     directly. There is no service account and no private key in this project. */
+  firebase: {
+    projectId: process.env.FIREBASE_PROJECT_ID || '',
+    apiKey: process.env.FIREBASE_API_KEY || '',
+    authDomain: process.env.FIREBASE_AUTH_DOMAIN || '',
+    appId: process.env.FIREBASE_APP_ID || '',
+    /* Whether to offer the Google button. Enabling the provider in the Firebase
+       console is only half of it: this app sends people to Google directly
+       rather than through the Web SDK, so its own origins must also be listed as
+       authorised redirect URIs on the OAuth client the console created, or
+       Google answers redirect_uri_mismatch. This flag stays false until that is
+       done — an absent button beats one that dead-ends. */
+    googleAuth: String(process.env.FIREBASE_GOOGLE_AUTH || '').toLowerCase() === 'true'
   },
 
   mongo: {
@@ -72,8 +78,11 @@ export const config = {
 
 export function assertConfig() {
   const missing = [];
-  if (!config.supabase.url) missing.push('SUPABASE_URL');
-  if (!config.supabase.anonKey) missing.push('SUPABASE_ANON_KEY');
+  /* Without these two nobody can sign in at all, in any environment. Naming them
+     here means a misconfigured deployment says so on the first request instead
+     of looking like a broken password. */
+  if (!config.firebase.projectId) missing.push('FIREBASE_PROJECT_ID');
+  if (!config.firebase.apiKey) missing.push('FIREBASE_API_KEY');
   if (config.env === 'production') {
     if (process.env.SESSION_SECRET === undefined) missing.push('SESSION_SECRET');
     /* In development an absent URI starts a local mongod; a deployed instance
