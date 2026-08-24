@@ -1,6 +1,6 @@
 /* The one place the browser talks to the Diiwaan API.
 
-   Every owner request carries the Supabase access token; the server decides what
+   Every owner request carries the Firebase id token; the server decides what
    that identity may see. Failures come back as ApiError so screens can show the
    server's own sentence rather than a generic apology. */
 

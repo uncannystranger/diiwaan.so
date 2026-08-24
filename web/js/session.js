@@ -1,13 +1,14 @@
 /* Owner identity in the browser.
 
-   Supabase Auth owns the credentials; this module speaks its REST API directly —
-   six endpoints, no SDK bundle. The long-lived refresh token is handed straight
-   to our backend, which seals it in an HttpOnly cookie, so no auth secret is ever
-   written to localStorage and an XSS bug cannot walk off with a session. The tab
-   keeps a short-lived access token in memory and renews it from the cookie on
-   page load and shortly before it expires. */
+   Firebase Authentication owns the credentials; firebase-auth.js speaks its REST
+   API directly, with no SDK bundle. The long-lived refresh token is handed
+   straight to our backend, which seals it in an HttpOnly cookie, so no auth
+   secret is ever written to localStorage and an XSS bug cannot walk off with a
+   session. The tab keeps a short-lived id token in memory and renews it from the
+   cookie on page load and shortly before it expires. */
 
 import { t } from './i18n.js';
+import * as firebase from './firebase-auth.js';
 
 let runtime = null;
 let renewTimer = null;
@@ -21,7 +22,7 @@ export const state = {
   needsVerification: false,
   /* Set when the app cannot talk to its own API at all. Distinct from a wrong
      password: nothing the person types will help until it is cleared. */
-  backendError: ''
+  backendError: '',
 };
 
 const emit = () => listeners.forEach(fn => fn(state));
@@ -34,59 +35,39 @@ export const accessToken = () => state.session?.accessToken || null;
 export const isSignedIn = () => Boolean(state.session);
 export const userId = () => state.session?.user?.id || null;
 export const appUrl = () => runtime?.appUrl || location.origin;
-export const googleAuthAvailable = () => Boolean(runtime?.googleAuth);
+export const googleAuthAvailable = () => Boolean(runtime?.googleAuth) && firebase.isConfigured();
 
 /** Set when a provider sent us back with a refusal instead of a session. */
 export let oauthError = '';
 
-/* ---------- Supabase REST ---------- */
+/* Google supplies a display name; our own profile may not have one yet. Held
+   here so the first /api/auth/me after a Google sign-in can adopt it. */
+export let googleName = '';
+export const clearGoogleName = () => { googleName = ''; };
 
-async function gotrue(path, { method = 'POST', body, token } = {}) {
-  if (!runtime?.supabaseUrl || !runtime?.supabaseAnonKey) {
-    throw new Error(state.backendError || 'The service is not reachable right now.');
-  }
+/* ---------- provider errors ---------- */
 
-  const response = await fetch(`${runtime.supabaseUrl}/auth/v1${path}`, {
-    method,
-    headers: {
-      apikey: runtime.supabaseAnonKey,
-      'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {})
-    },
-    body: body === undefined ? undefined : JSON.stringify(body)
-  });
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    const failure = new Error(friendly(data));
-    /* The sentence is for the person; this is for the code that has to decide
-       what to offer them next. */
-    failure.reason = data?.error_code || data?.code || '';
-    failure.status = response.status;
-    throw failure;
-  }
-  return data;
+/* Firebase answers in constants. These are the ones a person actually meets,
+   said in their own language — and each names what to do next, not merely what
+   went wrong. A raw code never reaches the screen. */
+function firebaseFailure(error) {
+  const failure = new Error(error?.reasonKey ? t(error.reasonKey) : t('common.wentWrong'));
+  failure.reason = error?.code || '';
+  return failure;
 }
 
-/* Supabase answers in English. These are the handful a person actually meets,
-   said in their own language — and each one names what to do next, not merely
-   what went wrong. */
-function friendly(error) {
-  const message = error?.msg || error?.error_description || error?.message || '';
-  const code = error?.error_code || error?.code || '';
-  const is = pattern => pattern.test(message) || pattern.test(String(code));
-
-  if (is(/invalid login credentials|invalid_credentials/i)) return t('auth.errWrongPair');
-  if (is(/already registered|already exists|user_already_exists/i)) return t('auth.errTaken');
-  if (is(/email not confirmed|email_not_confirmed/i)) return t('auth.errUnconfirmed');
-  if (is(/password should be at least|weak_password|weak/i)) return t('auth.errWeak');
-  if (is(/rate limit|too many|over_email_send_rate_limit|after \d+ seconds/i)) return t('auth.errTooMany');
-  if (is(/invalid.*email|email address.*invalid|validation_failed/i)) return t('auth.errBadEmail');
-  if (is(/signup.*disabled|signup_disabled/i)) return t('auth.errSignupOff');
-  return message || t('common.wentWrong');
+/* Guards every call that needs the provider. Without it a misconfigured
+   deployment fails deep inside a fetch with a message about credentials. */
+function requireProvider() {
+  if (!firebase.isConfigured()) {
+    throw new Error(state.backendError || t('auth.errProviderOff'));
+  }
 }
 
-/** True when the only thing in the way is an email link nobody has clicked. */
-export const isUnconfirmed = error => error?.reason === 'email_not_confirmed';
+/* Firebase lets an unverified account straight in, so nothing is ever blocked
+   on a link nobody clicked. Kept so callers need not care which provider is in
+   use; it is simply never true now. */
+export const isUnconfirmed = () => false;
 
 /* ---------- our session cookie ---------- */
 
@@ -152,40 +133,40 @@ export async function boot() {
       fetch('/api/config'), 8000, 'The service took too long to answer.'
     );
     const body = await response.json();
-    if (!response.ok || !body.supabaseUrl || !body.supabaseAnonKey) {
+    if (!response.ok || !body.firebase?.apiKey) {
       runtime = null;
-      state.backendError = body?.detail || body?.error || `The service replied ${response.status}.`;
+      firebase.configure('');
+      state.backendError = body?.detail || body?.error || t('auth.serviceReplied', { status: response.status });
     } else {
       runtime = body;
+      firebase.configure(body.firebase?.apiKey);
       state.backendError = '';
     }
   } catch (error) {
     runtime = null;
-    state.backendError = 'We could not reach the service. Check your connection and try again.';
+    firebase.configure('');
+    state.backendError = t('auth.serviceUnreachable');
   }
 
-  // Confirmation, password-reset and provider redirects all come back with
-  // their result in the fragment.
-  const fragment = new URLSearchParams(location.hash.replace(/^#\/?/, '').split('?').pop());
-  const linkRefresh = fragment.get('refresh_token');
-
-  if (fragment.get('error')) {
-    // A refusal at Google — a cancelled consent screen, or a provider that is
-    // not configured. Say so on the sign-in screen instead of dropping the
-    // person on the landing page with no explanation.
-    oauthError = friendly({ msg: fragment.get('error_description') || fragment.get('error') });
-    history.replaceState(null, '', `${location.pathname}#/signin`);
+  /* Google returning with an answer. This has to be settled before the ordinary
+     session restore, or the app would render signed out for a moment and then
+     jump — and the query string has to be scrubbed either way, so a stale
+     authorisation code is never left sitting in the address bar or in history. */
+  if (firebase.isGoogleCallback()) {
+    try {
+      const account = await withDeadline(firebase.finishGoogle(), 12000, 'timeout');
+      await handOver(account.refreshToken);
+      if (account.name) googleName = account.name;
+    } catch (error) {
+      // A cancelled consent screen is a decision, not a failure worth reporting.
+      if (!error?.cancelled) oauthError = t('auth.errGoogleFailed');
+    }
+    history.replaceState(null, '', `${location.pathname}#/${isSignedIn() ? 'queue' : 'signin'}`);
   }
 
-  if (linkRefresh) {
-    const type = fragment.get('type');
-    await withDeadline(handOver(linkRefresh), 8000, 'timeout').catch(() => null);
-    history.replaceState(null, '', `${location.pathname}#/${type === 'recovery' ? 'reset' : 'queue'}`);
-  } else {
-    /* A session restore that stalls must not hold the whole interface hostage:
-       failing it simply means signed out, which is a state the app can render. */
-    await withDeadline(restore(), 8000, 'timeout').catch(() => null);
-  }
+  /* A session restore that stalls must not hold the whole interface hostage:
+     failing it simply means signed out, which is a state the app can render. */
+  if (!isSignedIn()) await withDeadline(restore(), 8000, 'timeout').catch(() => null);
 
   state.ready = true;
   emit();
@@ -194,56 +175,56 @@ export async function boot() {
 
 /* ---------- credentials ---------- */
 
-/* Where a confirmation or recovery link should land. GoTrue reads this from the
-   query string, not the body — it was documented in a comment here but never
-   actually sent, so every link fell back to the project's Site URL. It must also
-   be listed under Authentication → URL Configuration, or GoTrue ignores it and
-   falls back anyway. */
-const linkBack = path => `redirect_to=${encodeURIComponent(`${appUrl()}/#/${path}`)}`;
-
 export async function signUp({ email, password, name }) {
-  const data = await gotrue(`/signup?${linkBack('queue')}`, {
-    body: {
-      email,
-      password,
-      data: { name },
-      gotrue_meta_security: {}
-    }
-  });
-
-  state.needsVerification = !data.access_token;
-  if (data.refresh_token) await handOver(data.refresh_token);
-  emit();
-  return { needsVerification: state.needsVerification };
+  requireProvider();
+  try {
+    const account = await firebase.signUp(email, password);
+    if (name) await firebase.updateProfile(account.idToken, name).catch(() => {});
+    /* The letter goes out, because a verified address is what binds staff
+       invitations and links an older account. But nobody is held at the door
+       for it: the queue opens now and the address can be confirmed later. */
+    await firebase.sendVerification(account.idToken).catch(() => {});
+    await handOver(account.refreshToken);
+    state.needsVerification = false;
+    emit();
+    return { needsVerification: false };
+  } catch (error) {
+    throw firebaseFailure(error);
+  }
 }
 
 /**
- * Hands the browser to Supabase's provider flow. It returns to this app with a
- * refresh token in the fragment, which `boot()` already knows how to adopt — the
- * same path a confirmation link takes.
+ * Hands the browser to Google. Control leaves this page and comes back to the
+ * app's own origin, where boot() finishes the exchange — the two halves are
+ * deliberately separate, because a redirect means the tab is thrown away in
+ * between and nothing can be kept in memory across it.
  */
-export function startOAuth(provider = 'google') {
-  if (!runtime) throw new Error('Not ready yet.');
-  const back = new URL(appUrl());
-  back.hash = '#/queue';
-  const url = new URL(`${runtime.supabaseUrl}/auth/v1/authorize`);
-  url.searchParams.set('provider', provider);
-  url.searchParams.set('redirect_to', back.toString());
-  location.assign(url.toString());
+export async function startGoogle() {
+  requireProvider();
+  try {
+    location.assign(await firebase.startGoogle());
+  } catch (error) {
+    throw firebaseFailure(error);
+  }
 }
 
 export async function signIn({ email, password }) {
-  const data = await gotrue('/token?grant_type=password', { body: { email, password } });
-  state.needsVerification = false;
-  await handOver(data.refresh_token);
-  return state.session;
+  requireProvider();
+  try {
+    const account = await firebase.signIn(email, password);
+    await handOver(account.refreshToken);
+    state.needsVerification = false;
+    return state.session;
+  } catch (error) {
+    throw firebaseFailure(error);
+  }
 }
 
 /**
- * Signing out is local first: the tab forgets the session in the same tick as the
- * click, so the interface can move immediately. Revoking the cookie and the
- * Supabase token happens on the way out — the returned promise is there for
- * callers that want to know when it finished, not for the person leaving.
+ * Signing out is local first: the tab forgets the session in the same tick as
+ * the click, so the interface can move immediately. Dropping the cookie happens
+ * on the way out — the returned promise is there for callers that want to know
+ * when it finished, not for the person leaving.
  */
 export function signOut() {
   clearTimeout(renewTimer);
@@ -256,51 +237,82 @@ export function signOut() {
 }
 
 export async function sendReset(email) {
-  await gotrue(`/recover?${linkBack('reset')}`, { body: { email } });
+  requireProvider();
+  try {
+    await firebase.sendPasswordReset(email);
+  } catch (error) {
+    /* Whether an address is registered is not something this screen should
+       reveal — it would turn the reset form into a way to enumerate accounts.
+       An unknown address reports the same success as a known one. */
+    if (error?.code?.startsWith('EMAIL_NOT_FOUND')) return;
+    throw firebaseFailure(error);
+  }
 }
 
-export async function resendVerification(email) {
-  await gotrue(`/resend?${linkBack('queue')}`, { body: { type: 'signup', email } });
+export async function resendVerification() {
+  requireProvider();
+  if (!accessToken()) throw new Error(t('auth.errSessionGone'));
+  try {
+    await firebase.sendVerification(accessToken());
+  } catch (error) {
+    throw firebaseFailure(error);
+  }
 }
 
 export async function updatePassword(password) {
-  await gotrue('/user', { method: 'PUT', body: { password }, token: accessToken() });
+  requireProvider();
+  try {
+    const data = await firebase.changePassword(accessToken(), password);
+    // A password change mints a new pair; adopting it keeps the tab signed in.
+    if (data.refreshToken) await handOver(data.refreshToken);
+  } catch (error) {
+    throw firebaseFailure(error);
+  }
+}
+
+/** Re-reads the account from Firebase — the authority on whether it is verified. */
+export async function refreshVerification() {
+  if (!accessToken()) return false;
+  try {
+    const account = await firebase.lookup(accessToken());
+    const verified = Boolean(account?.emailVerified);
+    if (verified) {
+      /* The in-memory token still claims otherwise until it is reissued, and
+         the server reads that claim — so mint a fresh one before asking again. */
+      await restore();
+    }
+    return verified;
+  } catch {
+    return false;
+  }
 }
 
 /* ---------- branding uploads ---------- */
 
-const EXTENSIONS = { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp', 'image/svg+xml': 'svg' };
+const ALLOWED = ['image/png', 'image/jpeg', 'image/webp'];
 
 /**
- * Uploads branding art straight to Supabase Storage as the signed-in owner.
- * The bucket's policies only allow writes inside a folder named after that
- * owner's user id, so one business can never overwrite another's artwork.
+ * Uploads branding art through our own API, which checks the file's real bytes,
+ * stores it beside everything else the business owns and returns the path it is
+ * served from. The request is authorised the same way every other owner call
+ * is, so one business can never write over another's artwork.
  */
-export async function uploadBrandingImage(file, { slug = 'logo' } = {}) {
-  const id = userId();
-  if (!id) throw new Error('Sign in again to upload an image.');
-  const extension = EXTENSIONS[file.type];
-  if (!extension) throw new Error('Use a PNG, JPEG, WebP or SVG image.');
+export async function uploadBrandingImage(file, { businessId } = {}) {
+  if (!accessToken()) throw new Error(t('auth.errSessionGone'));
+  if (!businessId) throw new Error(t('common.wentWrong'));
+  if (!ALLOWED.includes(file.type)) throw new Error(t('brand.useImageType'));
 
-  const bucket = runtime.brandingBucket || 'branding';
-  const path = `${id}/${slug}-${Date.now()}.${extension}`;
+  const body = new FormData();
+  body.append('file', file);
 
-  const response = await fetch(`${runtime.supabaseUrl}/storage/v1/object/${bucket}/${path}`, {
+  const response = await fetch(`/api/businesses/${businessId}/logo`, {
     method: 'POST',
-    headers: {
-      apikey: runtime.supabaseAnonKey,
-      Authorization: `Bearer ${accessToken()}`,
-      'Content-Type': file.type,
-      'x-upsert': 'true',
-      'cache-control': '31536000'
-    },
-    body: file
+    headers: { Authorization: `Bearer ${accessToken()}` },
+    body
   });
-  if (!response.ok) {
-    const detail = await response.json().catch(() => ({}));
-    throw new Error(friendly(detail) || 'The image could not be uploaded.');
-  }
-  return `${runtime.supabaseUrl}/storage/v1/object/public/${bucket}/${path}`;
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data.error || t('brand.uploadFailed'));
+  return data.url;
 }
 
 /** Called after any sign-in: our API supplies the profile and businesses. */

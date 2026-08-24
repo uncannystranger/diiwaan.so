@@ -59,7 +59,17 @@ export async function loadAccount() {
   owner.loading = true;
   notify();
   try {
-    const { user, businesses } = await api.me();
+    let { user, businesses } = await api.me();
+
+    /* Someone who arrived through Google already told Google their name; asking
+       again on the setup screen would be asking for something we were handed.
+       Adopted once, the first time we see a profile that has none. */
+    if (session.googleName && !user.name) {
+      await api.updateProfile({ name: session.googleName }).catch(() => {});
+      user = { ...user, name: session.googleName };
+    }
+    session.clearGoogleName();
+
     session.setAccount({ user, businesses });
     owner.businesses = businesses;
     owner.error = null;

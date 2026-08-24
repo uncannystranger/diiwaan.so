@@ -4,12 +4,13 @@
    Creates two businesses with queues, services and a few waiting customers so
    the console has something to show while you work.
 
-   Each argument is the owner of one seeded business: either a Supabase user id
-   (always works) or an email address (needs SUPABASE_SERVICE_ROLE_KEY so the id
-   can be looked up).
+   Each argument is the owner of one seeded business: a Firebase uid, or an
+   email address. An email address that has not signed in yet gets a stable
+   stand-in id; sign in with that address afterwards and the profile links to
+   the seeded business on the verified email, exactly as a real one would.
 
    Usage:
-     npm run seed -- 5f3c…-uuid another-uuid
+     npm run seed -- fMk2…firebase-uid another-uid
      npm run seed -- owner-a@example.com
 */
 
@@ -30,27 +31,15 @@ const owners = (process.argv.slice(2).length
 ).map(value => value.trim().toLowerCase()).filter(Boolean);
 
 if (!owners.length) {
-  console.error('Give me at least one owner: npm run seed -- <supabase-user-id|email>');
+  console.error('Give me at least one owner: npm run seed -- <firebase-uid|email>');
   process.exit(1);
 }
 
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+// Anything with an @ is an address; anything else is already an id.
+const isEmail = value => value.includes('@');
 
-/** Resolves an owner argument to a Supabase user id. */
-async function supabaseUserId(email) {
-  if (UUID.test(email)) return email;
-  if (!config.supabase.serviceRoleKey) {
-    console.warn(`  ! no SUPABASE_SERVICE_ROLE_KEY — cannot look up ${email}; pass the Supabase user id instead`);
-    return `seed-${email}`;
-  }
-  const response = await fetch(
-    `${config.supabase.url}/auth/v1/admin/users?filter=${encodeURIComponent(email)}`,
-    { headers: { apikey: config.supabase.serviceRoleKey, Authorization: `Bearer ${config.supabase.serviceRoleKey}` } }
-  );
-  if (!response.ok) return `seed-${email}`;
-  const { users = [] } = await response.json();
-  return users.find(user => user.email?.toLowerCase() === email)?.id || `seed-${email}`;
-}
+/** An owner argument as an id: a uid passes through, an address gets a stand-in. */
+const ownerIdFor = owner => (isEmail(owner) ? `seed-${owner}` : owner);
 
 const TEMPLATES = [
   {
@@ -92,9 +81,21 @@ await connect();
 
 for (const [index, owner] of owners.entries()) {
   const template = TEMPLATES[index % TEMPLATES.length];
-  const ownerId = await supabaseUserId(owner);
-  const email = UUID.test(owner) ? '' : owner;
+  const ownerId = ownerIdFor(owner);
+  const email = isEmail(owner) ? owner : '';
   const now = new Date();
+
+  /* A profile carrying the seeded id under the same address. Signing in with
+     that address later attaches the real Firebase uid to this profile, and the
+     seeded business comes with it — the same path a pre-Firebase account takes. */
+  if (email) {
+    await col(collections.profiles).updateOne(
+      { email },
+      { $set: { email, legacyUserId: ownerId, updatedAt: now },
+        $setOnInsert: { createdAt: now, name: '', phone: '', avatar: '' } },
+      { upsert: true }
+    );
+  }
 
   await col(collections.businesses).deleteMany({ slug: template.slug });
 
