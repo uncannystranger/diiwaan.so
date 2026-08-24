@@ -17,8 +17,8 @@ function serviceNotice() {
     </div>`;
 }
 
-/* Google's mark, drawn rather than fetched: the strict script/style policy keeps
-   remote assets out, and a four-colour G is four paths. */
+/* Google's mark, drawn rather than fetched: the strict image policy keeps remote
+   assets out, and a four-colour G is four paths. */
 const googleMark = (size = 18) => `
   <svg width="${size}" height="${size}" viewBox="0 0 48 48" aria-hidden="true">
     <path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9 3.6l6.7-6.7C35.6 2.6 30.2 0 24 0 14.6 0 6.5 5.4 2.6 13.2l7.8 6.1C12.3 13.2 17.7 9.5 24 9.5z"/>
@@ -29,13 +29,13 @@ const googleMark = (size = 18) => `
 
 /* Offered under the primary action rather than above it: an owner creating a
    queue for the first time is choosing how to sign in, not being sold a
-   provider. It only appears when Supabase actually has Google configured. */
-function googleButton() {
+   provider. It only appears when Google is actually switched on. */
+function googleButton(ui) {
   if (!googleAuthAvailable()) return '';
   return `
     <div class="or-rule"><span>${t('auth.orContinue')}</span></div>
-    <button type="button" class="btn btn--google" data-action="google-auth">
-      ${googleMark(19)}<span>${t('auth.google')}</span>
+    <button type="button" class="btn btn--google" data-action="google-auth" ${ui?.busy ? 'disabled aria-busy="true"' : ''}>
+      ${googleMark(19)}<span>${ui?.googleBusy ? t('auth.googleGoing') : t('auth.google')}</span>
     </button>
     <p class="hint center">${t('auth.googleHint')}</p>`;
 }
@@ -169,7 +169,7 @@ export function signUpView(ui) {
           <button class="btn" type="submit" ${ui.busy ? 'disabled aria-busy="true"' : ''}>
             ${ui.busy ? `<span class="spinner"></span>&nbsp; ${t('auth.creating')}` : t('auth.createAccount')}
           </button>
-          ${googleButton()}
+          ${googleButton(ui)}
           <p class="hint center">${t('auth.haveAccount')} <a href="#/signin">${t('auth.signIn')}</a></p>
         </form>
       </div>
@@ -200,7 +200,7 @@ export function signInView(ui) {
           <button class="btn" type="submit" ${ui.busy ? 'disabled aria-busy="true"' : ''}>
             ${ui.busy ? `<span class="spinner"></span>&nbsp; ${t('auth.signingIn')}` : t('auth.signInCta')}
           </button>
-          ${googleButton()}
+          ${googleButton(ui)}
           <div class="between">
             <a class="hint" href="#/forgot">${t('auth.forgot')}</a>
             <a class="hint" href="#/signup">${t('auth.createOne')}</a>
@@ -232,7 +232,9 @@ export function forgotView(ui) {
               ${form.errors.email ? `<span class="error-text">${esc(form.errors.email)}</span>` : ''}
             </div>
             ${form.errors.form ? `<p class="error-text">${esc(form.errors.form)}</p>` : ''}
-            <button class="btn" type="submit" ${ui.busy ? 'disabled aria-busy="true"' : ''}>${t('auth.sendReset')}</button>
+            <button class="btn" type="submit" ${ui.busy ? 'disabled aria-busy="true"' : ''}>
+              ${ui.busy ? `<span class="spinner"></span>&nbsp; ${t('auth.sending')}` : t('auth.sendReset')}
+            </button>
             <p class="hint center"><a href="#/signin">${t('auth.backToSignIn')}</a></p>
           </form>`}
       </div>
@@ -255,13 +257,15 @@ export function resetView(ui) {
           })}
           ${strengthMeter(form.password)}
           ${form.errors.form ? `<p class="error-text">${esc(form.errors.form)}</p>` : ''}
-          <button class="btn" type="submit" ${ui.busy ? 'disabled aria-busy="true"' : ''}>${t('auth.savePassword')}</button>
+          <button class="btn" type="submit" ${ui.busy ? 'disabled aria-busy="true"' : ''}>
+            ${ui.busy ? `<span class="spinner"></span>&nbsp; ${t('auth.saving')}` : t('auth.savePassword')}
+          </button>
         </form>
       </div>
     </div>`);
 }
 
-/** Shown when Supabase has sent a confirmation email and is waiting for it. */
+/** Offered after sign-up: the address is unconfirmed but the queue is already open. */
 export function verifyView(ui, email) {
   return shell(`
     <div class="stage stage--narrow stage--entry">
@@ -271,7 +275,9 @@ export function verifyView(ui, email) {
           <h1>${t('auth.confirmEmail')}</h1>
           <p class="lead">${esc(t('auth.confirmLead', { email }))}</p>
           <div class="btn-row">
-            <button class="btn btn--quiet btn--auto" data-action="resend-verification" ${ui.busy ? 'disabled' : ''}>${t('auth.sendAgain')}</button>
+            <button class="btn btn--quiet btn--auto" data-action="resend-verification" ${ui.busy ? 'disabled aria-busy="true"' : ''}>
+              ${ui.busy ? `<span class="spinner"></span>&nbsp; ${t('auth.sending')}` : t('auth.sendAgain')}
+            </button>
             <button class="btn btn--quiet btn--auto" data-action="check-verification">${t('auth.iConfirmed')}</button>
           </div>
           <p class="hint" style="line-height:1.55">${t('auth.noEmailHelp')}</p>

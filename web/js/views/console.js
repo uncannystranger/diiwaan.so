@@ -9,6 +9,7 @@ import {
 import { t, lang } from '../i18n.js';
 import { resolved as resolvedTheme } from '../theme.js';
 import { qrSvg } from '../qr.js';
+import { state as sessionState } from '../session.js';
 
 const TABS = ['queue', 'overview', 'brand', 'settings'];
 
@@ -418,12 +419,37 @@ export function overviewView(ui, ctx) {
     </div>`);
 }
 
+/* A reminder, not a barrier. The account already works; confirming the address
+   is what lets an owner recover it and what binds a staff invitation, so the
+   strip says why rather than simply nagging. It sits in the flow of the page
+   instead of over it — nothing to dismiss before the dashboard can be used. */
+function verifyStrip(ui) {
+  const user = sessionState.user;
+  if (!user || user.emailVerified !== false || ui.verifyDismissed) return '';
+  return `
+  <div class="verify-strip" role="status">
+    <span class="verify-strip__dot" aria-hidden="true"></span>
+    <p class="verify-strip__text">
+      <strong>${esc(t('verify.title'))}</strong>
+      <span>${esc(t('verify.body', { email: user.email }))}</span>
+    </p>
+    <span class="verify-strip__actions">
+      <button class="btn btn--quiet btn--auto btn--sm" data-action="resend-verification" ${ui.busy ? 'disabled aria-busy="true"' : ''}>
+        ${ui.busy ? t('auth.sending') : t('verify.resend')}
+      </button>
+      <button class="btn btn--quiet btn--auto btn--sm" data-action="check-verification" ${ui.busy ? 'disabled' : ''}>${t('verify.recheck')}</button>
+      <button class="icon-btn verify-strip__close" data-action="dismiss-verify" aria-label="${esc(t('verify.dismiss'))}">${icon('close')}</button>
+    </span>
+  </div>`;
+}
+
 /** Wraps a console screen in the branded frame plus chrome. */
 export function frame(ui, ctx, current, inner) {
   const { business } = ctx;
   return `
   <div class="${cx('screen', current === 'queue' && 'screen--fixed')}">
     ${chrome(current, ctx)}
+    ${verifyStrip(ui)}
     <main id="main">${inner}</main>
     <footer class="console-footer">${watermark()}${madeBy()}</footer>
     ${mobileNav(current)}

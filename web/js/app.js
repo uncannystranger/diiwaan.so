@@ -10,7 +10,7 @@ import { presetById, deriveFromPrimary, completeBranding, contrast, readableOn, 
 import { enableAlerts, announce, holdScreenAwake, permission as notificationPermission } from './notify.js';
 import { buzz } from './haptics.js';
 import { t, toggleLanguage } from './i18n.js';
-import { landingView, signUpView, signInView, forgotView, resetView, verifyView } from './views/auth.js';
+import { landingView, signUpView, signInView, forgotView, resetView } from './views/auth.js';
 /* Only the entry screens are part of the first download. The console, the brand
    studio, the printed sign, the display and the customer page are each fetched
    the first time a route needs them — someone who opens the landing page and
@@ -51,6 +51,8 @@ const ui = {
   auth: { name: '', email: '', password: '', errors: {} },
   showPassword: false,
   resetSent: false,
+  verifyDismissed: false,
+  googleBusy: false,
   busy: false,
   saving: false,
   setup: { step: 0, errors: {}, slugPreview: '' },
@@ -107,7 +109,12 @@ function toast(message, { variant = '', action, timeout = 3200 } = {}) {
   return id;
 }
 
-function dialog({ title, body, confirmLabel = 'Confirm', cancelLabel = 'Cancel', danger = false, fields = [] }) {
+/* Labels default through t(), not through English string literals — a dialog
+   that opens in the wrong language is the one place a bilingual interface most
+   obviously falls apart. */
+function dialog({ title, body, confirmLabel, cancelLabel, danger = false, fields = [] }) {
+  confirmLabel = confirmLabel || t('common.confirm');
+  cancelLabel = cancelLabel || t('common.cancel');
   return new Promise(resolve => {
     ui.dialog = { title, body, confirmLabel, cancelLabel, danger, fields, values: {}, resolve };
     render();
@@ -118,7 +125,7 @@ function dialog({ title, body, confirmLabel = 'Confirm', cancelLabel = 'Cancel',
   });
 }
 
-const confirmDialog = options => dialog({ ...options, confirmLabel: options.confirmLabel || 'Yes, do it' });
+const confirmDialog = options => dialog({ ...options, confirmLabel: options.confirmLabel || t('common.yesDoIt') });
 
 function closeDialog(result) {
   const pending = ui.dialog;
@@ -198,11 +205,10 @@ async function resolveRoute() {
   currentSlug = '';
   store.closeCustomerStream();
 
-  /* Someone who has just signed up has no session yet — Supabase withholds it
-     until the address is confirmed. The check therefore has to come before the
-     signed-in guard, or the route falls back to the sign-up form and the person
-     is left staring at the page they just submitted. */
-  if (session.state.needsVerification) return { kind: 'verify' };
+  /* An unconfirmed address no longer stops anyone. Firebase issues a working
+     session immediately, so the queue opens now and the reminder to confirm
+     lives in a strip inside the dashboard — a wall here would hold somebody at
+     the door of a product that is already theirs. */
 
   if (!session.isSignedIn()) {
     return { kind: AUTH_ROUTES[route.name] ? route.name : 'landing' };
@@ -304,7 +310,6 @@ function screenFor(resolved) {
     case 'landing': return landingView();
     case 'signup': case 'signin': case 'forgot': case 'reset':
       return AUTH_ROUTES[resolved.kind](ui);
-    case 'verify': return verifyView(ui, session.state.user?.email || ui.auth.email);
     case 'setup': return screens.setupView({ ...ui, services: store.owner.services }, store.owner.business, joinBase());
     case 'customer': return customerScreen();
     default: {
@@ -719,7 +724,7 @@ function scheduleSave(fn) {
     try {
       await fn();
     } catch (error) {
-      reportError(error, 'That change was not saved.');
+      reportError(error, t('err.notSaved'));
     } finally {
       ui.saving = false;
       render();
@@ -813,15 +818,11 @@ const actions = {
     if (Object.keys(ui.auth.errors).length) return render();
     ui.busy = true; render();
     try {
-      const { needsVerification } = await session.signUp({ email, password, name });
-      if (needsVerification) {
-        toast(t('msg.checkEmail'), { timeout: 5000 });
-      } else {
-        await store.loadAccount();
-        if (session.state.user) await api.updateProfile({ name });
-        location.hash = '#/setup';
-        toast(t('msg.accountCreated'));
-      }
+      await session.signUp({ email, password, name });
+      await store.loadAccount();
+      if (session.state.user) await api.updateProfile({ name });
+      location.hash = '#/setup';
+      toast(t('msg.accountCreated'));
     } catch (error) {
       ui.auth.errors = { form: error.message };
     } finally {
@@ -834,7 +835,7 @@ const actions = {
     const { email, password } = readAuthForm(form);
     ui.auth.errors = {};
     if (!email || !password) {
-      ui.auth.errors = { form: 'Enter your email and password.' };
+      ui.auth.errors = { form: t('auth.needBoth') };
       return render();
     }
     ui.busy = true; render();
@@ -848,12 +849,7 @@ const actions = {
       /* An account that exists but was never confirmed is not a wrong password —
          it is one unclicked link. The screen that can resend it is more use than
          an error above a form they filled in correctly. */
-      if (session.isUnconfirmed(error)) {
-        session.state.needsVerification = true;
-        ui.auth.email = email;
-      } else {
-        ui.auth.errors = { form: error.message };
-      }
+      ui.auth.errors = { form: error.message };
     } finally {
       ui.busy = false;
       await navigate();
@@ -863,7 +859,7 @@ const actions = {
     event.preventDefault();
     const email = form.querySelector('#fp-email').value.trim();
     ui.auth.email = email;
-    if (!email) { ui.auth.errors = { email: 'Enter your email.' }; return render(); }
+    if (!email) { ui.auth.errors = { email: t('auth.needEmail') }; return render(); }
     ui.busy = true; render();
     try {
       await session.sendReset(email);
@@ -877,7 +873,7 @@ const actions = {
   async 'set-password'(event, form) {
     event.preventDefault();
     const password = form.querySelector('#np-password').value;
-    if (password.length < 8) { ui.auth.errors = { password: 'Use at least 8 characters.' }; return render(); }
+    if (password.length < 8) { ui.auth.errors = { password: t('auth.needLonger') }; return render(); }
     ui.busy = true; render();
     try {
       await session.updatePassword(password);
@@ -899,15 +895,36 @@ const actions = {
   async 'resend-verification'() {
     ui.busy = true; render();
     try {
-      await session.resendVerification(session.state.user?.email || ui.auth.email);
+      await session.resendVerification();
       toast(t('msg.confirmResent'));
     } catch (error) { reportError(error); } finally { ui.busy = false; render(); }
   },
   async 'check-verification'() {
-    await store.loadAccount();
-    if (session.state.needsVerification) toast(t('msg.notConfirmed'), { variant: 'warn' });
-    else { toast(t('msg.emailConfirmed')); location.hash = '#/setup'; }
-    await navigate();
+    ui.busy = true; render();
+    try {
+      const verified = await session.refreshVerification();
+      if (!verified) return toast(t('msg.notConfirmed'), { variant: 'warn' });
+      await store.loadAccount();
+      toast(t('msg.emailConfirmed'), { variant: 'good' });
+    } catch (error) {
+      reportError(error);
+    } finally { ui.busy = false; render(); }
+  },
+  /* Dismissing hides the strip for this tab only. The address is still
+     unconfirmed and the reminder returns next visit — it is a nudge, not a
+     decision, so it must not be possible to switch it off for good by accident. */
+  'dismiss-verify'() { ui.verifyDismissed = true; render(); },
+  /* The page is about to be replaced by Google's, so the button is put into its
+     going state and left there — there is no "after" in this tab to reset it. */
+  async 'google-auth'() {
+    ui.googleBusy = true; render();
+    try {
+      await session.startGoogle();
+    } catch (error) {
+      ui.googleBusy = false;
+      ui.auth.errors = { form: error.message };
+      render();
+    }
   },
   'toggle-password'() { ui.showPassword = !ui.showPassword; render(); },
   /* Signing out is local work: drop the session and the cached tenant state and
@@ -958,7 +975,7 @@ const actions = {
       }
       ui.setup.step = 1;
     } catch (error) {
-      reportError(error, 'We could not save that.');
+      reportError(error, t('err.couldNotSave'));
     } finally {
       ui.busy = false; render();
     }
@@ -1044,12 +1061,6 @@ const actions = {
     if (ok) actions['sign-out']();
   },
 
-  'google-auth'() {
-    try {
-      session.startOAuth('google');
-    } catch (error) { reportError(error); }
-  },
-
   /* Opening the display in its own window is what makes this a second screen
      rather than a page the cashier has to leave. The dashboard keeps running in
      this window; the new one is a plain route, so it shares the same session and
@@ -1123,7 +1134,7 @@ const actions = {
       ui.addOpen = false;
       await store.refreshQueue();
       toast(t('msg.added', { label: ticket.label, name: ticket.name }));
-    } catch (error) { reportError(error, 'That customer was not added.'); } finally { ui.busy = false; render(); }
+    } catch (error) { reportError(error, t('err.customerNotAdded')); } finally { ui.busy = false; render(); }
   },
 
   async 'ticket-skip'() {
@@ -1254,7 +1265,7 @@ const actions = {
       const { business: updated } = await api.updateBusiness(business().id, { slug });
       await refreshBusiness(updated);
       toast(t('msg.linkChanged'));
-    } catch (error) { reportError(error, 'That link is not available.'); }
+    } catch (error) { reportError(error, t('err.linkTaken')); }
   },
   'copy-link'() {
     const url = `${joinBase()}/j/${business().slug}`;
@@ -1300,7 +1311,7 @@ const actions = {
       toast(t('msg.reportDownloaded'));
     } catch (error) {
       dismissToast(id);
-      reportError(error, 'That report could not be generated.');
+      reportError(error, t('err.reportFailed'));
     }
   },
 
@@ -1317,12 +1328,12 @@ const actions = {
   },
   async 'add-service'() {
     const values = await dialog({
-      title: 'Add a service',
-      body: 'Customers can pick this when they join.',
-      confirmLabel: 'Add service',
+      title: t('ask.addServiceTitle'),
+      body: t('ask.addServiceBody'),
+      confirmLabel: t('ask.addServiceConfirm'),
       fields: [
-        { name: 'name', label: 'Name', placeholder: 'Consultation' },
-        { name: 'estimatedDuration', label: 'Usual length (minutes)', type: 'number', value: '10' }
+        { name: 'name', label: t('ask.serviceName'), placeholder: t('ask.serviceNamePlaceholder') },
+        { name: 'estimatedDuration', label: t('ask.serviceLength'), type: 'number', value: '10' }
       ]
     });
     if (!values?.name) return;
@@ -1336,7 +1347,7 @@ const actions = {
       ui.services = services;
       toast(t('msg.serviceAdded'));
       store.notify();
-    } catch (error) { reportError(error, 'That service was not added.'); }
+    } catch (error) { reportError(error, t('err.serviceNotAdded')); }
   },
   async 'delete-service'(event, el) {
     const ok = await confirmDialog({
@@ -1366,12 +1377,12 @@ const actions = {
   },
   async 'invite-member'() {
     const values = await dialog({
-      title: 'Invite someone to your team',
-      body: 'They sign in with their own email and only ever see this business.',
-      confirmLabel: 'Send invitation',
+      title: t('ask.inviteTitle'),
+      body: t('ask.inviteBody'),
+      confirmLabel: t('ask.inviteConfirm'),
       fields: [
-        { name: 'name', label: 'Name', placeholder: 'Yuusuf Hersi' },
-        { name: 'email', label: 'Email', type: 'email', placeholder: 'name@example.com' }
+        { name: 'name', label: t('ask.inviteName'), placeholder: t('ask.inviteNamePlaceholder') },
+        { name: 'email', label: t('ask.inviteEmail'), type: 'email', placeholder: 'name@example.com' }
       ]
     });
     if (!values?.email) return;
@@ -1379,7 +1390,7 @@ const actions = {
       await api.inviteMember(business().id, { email: values.email.trim(), name: values.name?.trim() || '', role: 'staff' });
       await store.loadMembers();
       toast(t('msg.inviteReady', { email: values.email.trim() }), { timeout: 5000 });
-    } catch (error) { reportError(error, 'That invitation was not sent.'); }
+    } catch (error) { reportError(error, t('err.inviteNotSent')); }
   },
   async 'member-role'(event, el) {
     try {
@@ -1579,10 +1590,10 @@ function readAuthForm(form) {
 
 function validateAuth({ name, email, password }) {
   const errors = {};
-  if (!name || name.length < 2) errors.name = 'Tell us who you are.';
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) errors.email = 'That email does not look right.';
-  if (!password || password.length < 8) errors.password = 'Use at least 8 characters.';
-  else if (!/[0-9]/.test(password) || !/[a-zA-Z]/.test(password)) errors.password = 'Mix letters and numbers.';
+  if (!name || name.length < 2) errors.name = t('auth.needName');
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) errors.email = t('auth.errBadEmail');
+  if (!password || password.length < 8) errors.password = t('auth.needLonger');
+  else if (!/[0-9]/.test(password) || !/[a-zA-Z]/.test(password)) errors.password = t('auth.needMix');
   return errors;
 }
 
@@ -1723,22 +1734,22 @@ root.addEventListener('change', async event => {
     const picked = el.files[0];
     el.value = ''; // let the same file be picked again after a failure
     if (picked.size > MAX_INPUT_BYTES) {
-      return toast(`That image is ${humanSize(picked.size)} — the limit is 5 MB.`, { variant: 'warn', timeout: 4200 });
+      return toast(t('err.imageTooBig', { size: humanSize(picked.size) }), { variant: 'warn', timeout: 4200 });
     }
     ui.saving = true; render();
     try {
       // Decoded, resized and re-encoded here, so storage only ever holds a small
       // raster image and the owner never has to think about file size.
       const prepared = await prepareLogo(picked, { name: business().slug });
-      const url = await session.uploadBrandingImage(prepared.file, { slug: business().slug });
+      const url = await session.uploadBrandingImage(prepared.file, { businessId: business().id });
       const { business: updated } = await api.updateBusiness(business().id, { logo: url });
       await refreshBusiness(updated);
       await api.updateBranding(business().id, { logo: url });
       toast(prepared.after < prepared.before
-        ? `Logo updated · ${humanSize(prepared.before)} → ${humanSize(prepared.after)}`
-        : 'Logo updated');
+        ? `${t('brand.logoUpdated')} · ${humanSize(prepared.before)} → ${humanSize(prepared.after)}`
+        : t('brand.logoUpdated'));
     } catch (error) {
-      reportError(error, 'That logo was not uploaded.');
+      reportError(error, t('brand.uploadFailed'));
     } finally { ui.saving = false; render(); }
   }
 });

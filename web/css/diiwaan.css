@@ -2695,3 +2695,63 @@ html.retint, html.retint *, html.retint *::before, html.retint *::after {
   }
   .stage--entry .btn-row > .entry-cta { width: 100%; }
 }
+
+/* ---------- unconfirmed-address strip ----------
+
+   Sits between the header and the page, in the flow rather than over it: the
+   dashboard behind it is fully usable, which is the whole point. Amber rather
+   than red — nothing is wrong, there is simply one thing left to do. */
+.verify-strip {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin: 0 auto;
+  width: min(1180px, 100% - 32px);
+  padding: 12px 16px;
+  border-radius: 20px;
+  background: color-mix(in srgb, var(--brand) 9%, var(--glass-quiet));
+  border: 1px solid color-mix(in srgb, var(--brand) 24%, transparent);
+  animation: verify-in var(--mid) both;
+}
+@keyframes verify-in {
+  from { opacity: 0; transform: translateY(-6px); }
+  to   { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .verify-strip { animation: none; }
+}
+
+.verify-strip__dot {
+  flex: none;
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: var(--brand);
+  /* A slow pulse marks it as live without ever pulling the eye off the queue. */
+  animation: verify-pulse 2.4s ease-in-out infinite;
+}
+@keyframes verify-pulse {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: .35; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .verify-strip__dot { animation: none; }
+}
+
+.verify-strip__text {
+  flex: 1 1 260px;
+  margin: 0;
+  font-size: 13.5px;
+  line-height: 1.45;
+  color: var(--ink-2);
+}
+.verify-strip__text strong { display: block; color: var(--ink-1); font-weight: 600; }
+
+.verify-strip__actions { display: flex; align-items: center; gap: 8px; flex: none; }
+.verify-strip__close { border: none; background: none; color: var(--ink-3); }
+.verify-strip__close:hover { color: var(--ink-1); }
+
+@media (max-width: 640px) {
+  .verify-strip { width: calc(100% - 20px); border-radius: 18px; }
+  .verify-strip__actions { width: 100%; justify-content: flex-start; }
+}
