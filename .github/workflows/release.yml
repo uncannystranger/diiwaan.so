@@ -11,7 +11,10 @@ name: Release
 on:
   push:
     branches: [main]
-    paths-ignore: ['**.md', '.github/**']
+    # Documentation alone does not warrant a version. Everything else does —
+    # including this workflow, which otherwise could never test a change to
+    # itself.
+    paths-ignore: ['**.md']
   workflow_dispatch:
 
 permissions:
