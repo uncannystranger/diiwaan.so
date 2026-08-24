@@ -12,7 +12,8 @@ No app. No account. Nothing to install.
 <img alt="Node" src="https://img.shields.io/badge/Node-20+-04121D?style=flat-square&labelColor=0A1E2E&color=3AA69B">
 <img alt="Express" src="https://img.shields.io/badge/Express-5-04121D?style=flat-square&labelColor=0A1E2E&color=3AA69B">
 <img alt="MongoDB" src="https://img.shields.io/badge/MongoDB-driver-04121D?style=flat-square&labelColor=0A1E2E&color=3AA69B">
-<img alt="Supabase Auth" src="https://img.shields.io/badge/Supabase-Auth%20%2B%20Storage-04121D?style=flat-square&labelColor=0A1E2E&color=E0912F">
+<img alt="Firebase Auth" src="https://img.shields.io/badge/Firebase-Authentication-04121D?style=flat-square&labelColor=0A1E2E&color=E0912F">
+<img alt="Zero secrets" src="https://img.shields.io/badge/service%20account-none%20required-04121D?style=flat-square&labelColor=0A1E2E&color=3AA69B">
 <img alt="No framework" src="https://img.shields.io/badge/frontend-no%20framework-04121D?style=flat-square&labelColor=0A1E2E&color=E0912F">
 <img alt="Tests" src="https://img.shields.io/badge/tests-90%20API%20%C2%B7%2033%20QR-04121D?style=flat-square&labelColor=0A1E2E&color=3AA69B">
 <img alt="Languages" src="https://img.shields.io/badge/Soomaali-%C2%B7%20English-04121D?style=flat-square&labelColor=0A1E2E&color=E0912F">
@@ -25,20 +26,30 @@ No app. No account. Nothing to install.
 
 ```
 Browser (owner console + public customer page)
-   │  HTTPS · access token in memory · session in an HttpOnly cookie
+   │  HTTPS · id token in memory · session in an HttpOnly cookie
    ▼
-Diiwaan API  ──  Supabase Auth      (identity, sign-up, verification, resets)
-   │         ──  Supabase Storage   (logos and branding art)
-   │         ──  Web Push           ("your turn", even with the tab closed)
+Diiwaan API  ──  Firebase Auth   (identity, sign-up, verification, resets)
+   │         ──  Web Push        ("your turn", even with the tab closed)
    ▼
-MongoDB      (businesses, queues, tickets, services, members, analytics, audit)
+MongoDB      (businesses, queues, tickets, services, members,
+              branding art, analytics, audit)
 ```
 
-Supabase owns credentials. MongoDB owns the application. **No authentication secret is
-stored in the browser**: the refresh token is sealed with AES-256-GCM into an HttpOnly,
-SameSite cookie that JavaScript cannot read, and the tab holds only a short-lived access
-token in memory, renewed from that cookie on load and a minute before it expires. What is
-left in `localStorage` is a theme preference, the customer's own ticket token, and a
+Firebase owns credentials. MongoDB owns everything else, artwork included.
+
+**No authentication secret exists in this project — on either side.** In the browser, the
+refresh token is sealed with AES-256-GCM into an HttpOnly, SameSite cookie that JavaScript
+cannot read, and the tab holds only a short-lived id token in memory, renewed from that
+cookie on load and a minute before it expires. On the server there is no service account,
+no Admin SDK and no private key: Firebase id tokens are ordinary RS256 JWTs signed with keys
+Google publishes, so verifying one needs the project id and nothing else. The only thing
+that could be stolen from the server's Firebase code is knowledge of which project it trusts.
+
+There is no Firebase SDK in the browser either. `web/js/firebase-auth.js` speaks the Identity
+Toolkit REST API directly — a few endpoints instead of a megabyte of bundle, no build step,
+and a content-security policy that can stay at `script-src 'self'`.
+
+What is left in `localStorage` is a theme preference, the customer's own ticket token, and a
 read-through cache used while reconnecting.
 
 
@@ -58,8 +69,8 @@ read-through cache used while reconnecting.
 ## Getting started
 
 ```bash
-cp .env.example .env      # fill in SUPABASE_URL and SUPABASE_ANON_KEY
-npm install               # also bundles supabase-js into web/vendor/
+cp .env.example .env      # fill in FIREBASE_PROJECT_ID and FIREBASE_API_KEY
+npm install
 npm run dev               # http://localhost:4173
 ```
 
@@ -72,29 +83,47 @@ nothing else changes.
 Optional sample data — never loaded by the running server:
 
 ```bash
-npm run seed -- <supabase-user-id>          # or an email, with a service-role key set
+npm run seed -- <firebase-uid>       # or an email address
 ```
 
-### Supabase setup
+Seeding by email creates the business under a stand-in id and a profile carrying that
+address. Sign in with it afterwards, confirm the address, and the profile adopts your real
+Firebase uid — the seeded business comes with it, along the same path a pre-Firebase account
+takes.
 
-1. Create a project and copy its URL and publishable (anon) key into `.env`.
-2. Set `SESSION_SECRET` to a long random string — it seals the session cookie, and rotating
+### Firebase setup
+
+Four values, all of them public. Firebase publishes the web api key on purpose: it identifies
+the project rather than authorising anything, and access is decided by Firebase's own rules
+and by this server verifying the signed token.
+
+1. In **Authentication → Sign-in method**, enable **Email/Password**.
+2. In **Authentication → Settings → Authorised domains**, add the domain you deploy to.
+   `localhost` is there by default.
+3. Copy the four values from **Project settings → Your apps → Web app** into `.env`:
+   `FIREBASE_PROJECT_ID`, `FIREBASE_API_KEY`, `FIREBASE_AUTH_DOMAIN`, `FIREBASE_APP_ID`.
+4. Set `SESSION_SECRET` to a long random string — it seals the session cookie, and rotating
    it simply signs everyone out.
-3. Create the branding bucket and its policies — the SQL lives in
-   [server/migrations/001_branding_storage.sql](server/migrations/001_branding_storage.sql).
-   Owners upload straight to storage under a folder named after their own user id; the
-   policies make it impossible to write into anyone else's folder, and the API only accepts
-   image URLs that live in that bucket.
-4. In Authentication → Providers, keep email confirmation on for production.
 5. Generate a VAPID key pair for customer notifications: `npx web-push generate-vapid-keys`,
    then set `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` and `VAPID_SUBJECT`. Without them push
    stays off and customers fall back to the in-page alert.
-4. Recommended: turn on **leaked password protection** (Authentication → Policies) — Supabase's
-   own advisor flags it as off by default:
-   <https://supabase.com/docs/guides/auth/password-security#password-strength-and-leaked-password-protection>
 
-`SUPABASE_SERVICE_ROLE_KEY` is optional. It is only needed for the server-side upload route
-and for seeding by email; the app itself never asks the browser for it.
+There is no sixth step. No service account JSON to download, no private key to store, nothing
+to rotate.
+
+<details>
+<summary><b>Optional: Continue with Google</b></summary>
+
+Enabling Google in the Firebase console is only half of it. Because this app sends people to
+Google directly over REST rather than through the Web SDK, its own origins must also be listed
+as **Authorised redirect URIs** on the OAuth client the console created — Google Cloud Console
+→ APIs & Services → Credentials → the *Web client (auto created by Google Service)* entry.
+
+Add `http://localhost:4173/` and `https://your-domain/`, then set `FIREBASE_GOOGLE_AUTH=true`.
+Until that is done the flag stays `false` and the button is not rendered at all: an absent
+button beats one that dead-ends on `redirect_uri_mismatch`.
+
+</details>
 
 ## The three actors
 
@@ -124,7 +153,7 @@ customer's name or phone, never see the desk, and never need an account.
 
 ## API
 
-All owner routes require a Supabase access token and resolve the tenant server-side.
+All owner routes require a Firebase id token and resolve the tenant server-side.
 
 ```
 GET    /api/config                                    public runtime config
@@ -163,7 +192,8 @@ GET    /api/businesses/:businessId/report.pdf         branded PDF report (manage
 POST   /api/businesses/:businessId/queue/tickets/:id/call   call one waiting customer now
 
 POST   /api/public/:slug/notify                       register this ticket for push
-POST   /api/uploads/businesses/:businessId/logo       server-side upload (needs a service-role key)
+POST   /api/businesses/:businessId/logo               branding upload, checked by magic bytes
+GET    /api/branding/:asset                           the stored image, public and immutable
 
 POST   /api/auth/session                              store a fresh sign-in in the cookie
 GET    /api/auth/session                              restore / renew from the cookie
@@ -177,7 +207,7 @@ ride the cookie — and no other endpoint accepts cookie authentication at all.
 ## Data model
 
 `user_profiles`, `businesses`, `business_members`, `queues`, `tickets`, `services`,
-`invitations`, `analytics_events`, `audit_logs` — created with JSON-Schema validators and
+`invitations`, `branding_assets`, `analytics_events`, `audit_logs` — created with JSON-Schema validators and
 indexed for the queries that actually run: `businesses.slug` (unique), `businesses.ownerId`,
 `business_members.{businessId,userId}` (unique), `tickets.{queueId,status,position}`,
 `tickets.{queueId,number}` (unique), `tickets.{businessId,createdAt}`,
@@ -187,6 +217,28 @@ A ticket moves through `waiting → called → serving → completed`, or ends a
 `no_show` or `cancelled`, with a timestamp on every transition. Metrics are computed from
 those timestamps and from the event log in the database — never from whatever a browser is
 holding.
+
+## One person, one account
+
+Firebase issues a working session the moment somebody signs up, before the address is
+confirmed. That is the right default — holding an owner at the door of a product that is
+already theirs helps nobody — but it makes the join between an identity and its work worth
+stating precisely.
+
+A profile is keyed by its Firebase uid. A profile that predates Firebase carries its old id
+under `legacyUserId`, and the businesses and seats it owns were written against *that*
+string. Signing in with a confirmed address that matches such a profile attaches the new uid
+to it rather than starting a second one, and every ownership and membership lookup matches
+against **all** the ids a person is known by. Nobody's identifier is ever rewritten.
+
+Two records can also exist already — signing up before confirming makes one, while the older
+work sits on another. Once the address is confirmed they are merged into a single profile:
+the legacy id is released from the old record before the surviving one takes it, because the
+index that keeps ids unique would otherwise refuse the write, and the whole document is taken
+first so a failure halfway can put it back exactly as it was.
+
+Only a **confirmed** address is trusted for any of this. An unconfirmed one would let anyone
+who can type an address inherit somebody else's queue.
 
 ## Concurrency
 
@@ -225,8 +277,10 @@ actions are never applied offline: the server stays authoritative over the queue
 
 ## Security
 
-- Identity comes only from a verified Supabase token — JWKS-verified where the project uses
-  asymmetric keys, otherwise confirmed with GoTrue.
+- Identity comes only from a Firebase id token, verified against Google's published signing
+  keys, with the issuer and audience both pinned to this project — a perfectly valid token
+  minted for a different Firebase project is refused. No service account is involved, so
+  there is no privileged credential to leak, misplace or rotate.
 - `businessId`, `ownerId` and `role` are never read from the request body. `requireBusiness()`
   resolves the tenant, looks up membership in MongoDB, and 404s anything the caller does not
   belong to — an outsider cannot even learn a tenant exists.
@@ -247,8 +301,11 @@ actions are never applied offline: the server stays authoritative over the queue
 - **Bot protection on public joins**: a hidden field no person can reach and a floor on how fast
   the form can be completed. Both refuse with the same message, so a script learns nothing about
   which check caught it.
-- Row level security is enabled on Supabase Storage, and an owner can only write inside a folder
-  named after their own user id.
+- Branding images are stored in MongoDB and served from this app's own origin, so a logo
+  cannot point at an off-site tracker that every customer of that queue would then load. The
+  accepted URL is anchored at `/api/branding/`, with `..` and protocol-relative `//` refused.
+  Images are served with the content type this server sniffed, not the one the uploader
+  declared, plus `nosniff`.
 - **No secret is in this repository.** `.env` is ignored, `.env.example` carries placeholders
   only, and the API suite reads its test accounts from the environment with no defaults — a
   checkout cannot authenticate as anyone until you supply your own.
@@ -256,7 +313,7 @@ actions are never applied offline: the server stays authoritative over the queue
 ## Tests
 
 ```bash
-npm run test:api    # 65 checks against real Supabase auth and a real MongoDB
+npm run test:api    # 90 checks against real Firebase auth and a real MongoDB
 npm run test:qr     # 33 QR encode/decode round-trips
 ```
 
@@ -281,7 +338,8 @@ OpenCV during development to confirm they resolve to the right tenant URL.
 web/
   index.html            shell
   css/diiwaan.css       the design system: canvas tokens, light and dark, components, motion
-  js/session.js         Supabase auth: sign up, sign in, reset, session restore, storage upload
+  js/firebase-auth.js   Identity Toolkit over REST — no SDK, no bundle
+  js/session.js         sign up, sign in, reset, session restore, branding upload
   js/api.js             the only place the browser calls the API
   js/state.js           screen state, read-through cache, offline pending actions
   js/realtime.js        authenticated SSE with backoff and replay
@@ -316,7 +374,7 @@ re-mapping of the same tokens.
 - Run behind TLS; the app sets `trust proxy` for correct client addresses in rate limiting.
 - One process serves both the API and the static frontend. For more than one process, move
   realtime fan-out to Redis as described above.
-- `npm run build:vendor` runs on install and produces `web/vendor/supabase.js`.
+- There is no build step. The frontend ships the files you see; nothing is bundled or minified.
 
 
 ## Telling a customer their turn has come
@@ -367,7 +425,7 @@ Deliberate, and different per kind of data:
 
 ## Sessions
 
-A sign-in goes to Supabase from the browser. The refresh token it returns is handed to
+A sign-in goes to Firebase from the browser. The refresh token it returns is handed to
 `POST /api/auth/session` once and never touched again by JavaScript: the server seals it with
 AES-256-GCM and stores it in an HttpOnly, SameSite=Lax cookie scoped to `/api/auth`, `Secure`
 in production. The tab keeps only the short-lived access token, in memory.
@@ -375,23 +433,32 @@ in production. The tab keeps only the short-lived access token, in memory.
 - On load, `GET /api/auth/session` mints a new access token from the cookie — which is why a
   refresh, a new tab, or reopening the browser tomorrow lands you back in your queue.
 - The token is renewed a minute before it expires.
-- Supabase rotates refresh tokens, so two tabs restoring at the same moment would otherwise
-  spend the same token twice. Recent exchanges are replayed for fifteen seconds and concurrent
-  ones share a single in-flight request, so a race cannot sign anybody out.
-- Signing out clears the cookie and asks Supabase to revoke the token.
+- Two tabs restoring at the same moment would otherwise race the same exchange. Recent
+  exchanges are replayed for fifteen seconds and concurrent ones share a single in-flight
+  request, so a reload racing a scheduled renewal cannot sign anybody out.
+- Signing out clears the cookie. That *is* the sign-out: revoking a Firebase refresh token
+  needs a service account, this project deliberately has none, and the id token it held
+  expires within the hour on its own.
 - `SESSION_SECRET` seals the cookie. Rotating it signs everyone out; losing it costs nothing else.
 
 ## Testing
 
 ```bash
-npm run test:api    # 90 checks against real Supabase auth and a real MongoDB
+npm run test:api    # 90 checks against real Firebase auth and a real MongoDB
 npm run test:qr     # 33 QR encode/decode round-trips
 ```
 
-Before the API suite can run, put three throwaway Supabase accounts and their shared password in
-`.env` — `TEST_OWNER_A`, `TEST_OWNER_B`, `TEST_STAFF_A`, `TEST_PASSWORD`. There are no defaults;
-without them the suite stops and tells you what is missing rather than trying someone else's
-accounts.
+Before the API suite can run, put three throwaway Firebase accounts and their shared password
+in `.env` — `TEST_OWNER_A`, `TEST_OWNER_B`, `TEST_STAFF_A`, `TEST_PASSWORD`. There are no
+defaults; without them the suite stops and tells you what is missing rather than trying
+someone else's accounts.
+
+Those three addresses must also have **confirmed their email**, because binding a staff seat
+waits for confirmation — otherwise anyone who knows a colleague's address could register it
+and inherit their role. The suite checks the token's own `email_verified` claim up front and
+names the inboxes that still need a click, rather than failing nine role tests for a reason
+none of them mention. Nothing in the suite can confirm an address on your behalf, and nothing
+should: that only the mailbox owner can pass it is the entire point of the check.
 
 The suite signs in as two owners and a staff member and covers tenant isolation both ways,
 role limits, the whole ticket lifecycle, two simultaneous NEXT presses claiming different
