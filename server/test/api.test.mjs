@@ -1,4 +1,4 @@
-/* End-to-end API test against real Supabase auth and a real MongoDB.
+/* End-to-end API test against real Firebase auth and a real MongoDB.
    Run the server first (npm run dev), then: npm run test:api */
 
 import dotenv from 'dotenv';
@@ -9,9 +9,8 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: path.resolve(here, '../../.env') });
 
 const API = process.env.TEST_API_URL || 'http://localhost:4173';
-const SUPABASE = process.env.SUPABASE_URL;
-const ANON = process.env.SUPABASE_ANON_KEY;
-/* The suite signs in as real Supabase users, so the accounts it uses are
+const FIREBASE_KEY = process.env.FIREBASE_API_KEY;
+/* The suite signs in as real Firebase users, so the accounts it uses are
    configuration, never source. Nothing here has a default: a checkout of this
    repository cannot authenticate as anyone until whoever runs it supplies their
    own test accounts in .env. */
@@ -22,13 +21,13 @@ const ACCOUNTS = {
   staffA: process.env.TEST_STAFF_A
 };
 
-const missing = Object.entries({ TEST_PASSWORD: PASSWORD, ...{
+const missing = Object.entries({ FIREBASE_API_KEY: FIREBASE_KEY, TEST_PASSWORD: PASSWORD, ...{
   TEST_OWNER_A: ACCOUNTS.ownerA, TEST_OWNER_B: ACCOUNTS.ownerB, TEST_STAFF_A: ACCOUNTS.staffA
 } }).filter(([, value]) => !value).map(([name]) => name);
 
 if (missing.length) {
   console.error(`\nThese are needed in .env before the API suite can run:\n  ${missing.join('\n  ')}\n`);
-  console.error('They are three throwaway Supabase accounts and their shared password.\n');
+  console.error('They are three throwaway Firebase accounts and their shared password.\n');
   process.exit(1);
 }
 
@@ -46,14 +45,17 @@ function check(name, condition, detail = '') {
 }
 
 async function signIn(email) {
-  const response = await fetch(`${SUPABASE}/auth/v1/token?grant_type=password`, {
-    method: 'POST',
-    headers: { apikey: ANON, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email, password: PASSWORD })
-  });
+  const response = await fetch(
+    `https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${FIREBASE_KEY}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password: PASSWORD, returnSecureToken: true })
+    }
+  );
   const body = await response.json();
-  if (!body.access_token) throw new Error(`sign-in failed for ${email}: ${JSON.stringify(body).slice(0, 200)}`);
-  return body.access_token;
+  if (!body.idToken) throw new Error(`sign-in failed for ${email}: ${JSON.stringify(body).slice(0, 200)}`);
+  return body.idToken;
 }
 
 const api = (token) => async (method, url, body) => {
@@ -84,6 +86,30 @@ const A = api(tokenA);
 const B = api(tokenB);
 const S = api(tokenStaff);
 const anon = api(null);
+
+/* Firebase lets an account in before its address is confirmed, and binding a
+   staff seat deliberately waits for that confirmation — otherwise anyone who
+   knows a colleague's address could register it and inherit their role. So the
+   suite states plainly which inboxes still need a click, rather than reporting
+   nine unrelated-looking failures. */
+const claimsOf = token => JSON.parse(
+  Buffer.from(token.split('.')[1], 'base64url').toString('utf8')
+);
+const unverified = [
+  ['TEST_OWNER_A', ACCOUNTS.ownerA, tokenA],
+  ['TEST_STAFF_A', ACCOUNTS.staffA, tokenStaff]
+].filter(([, , token]) => claimsOf(token).email_verified !== true);
+
+if (unverified.length) {
+  console.error('\nThese test accounts have not confirmed their email address:\n');
+  for (const [name, email] of unverified) console.error(`  ${name}  ${email}`);
+  console.error(
+    '\nOpen each inbox and click the Firebase verification link, then run the suite'
+    + '\nagain. Nothing here can do it for you, and nothing should: the whole point'
+    + '\nof the check is that only the mailbox owner can pass it.\n'
+  );
+  process.exit(1);
+}
 
 check('rejects a request with no token', (await anon('GET', '/api/auth/me')).status === 401);
 check('rejects a forged token', (await api('not.a.token')('GET', '/api/auth/me')).status === 401);
