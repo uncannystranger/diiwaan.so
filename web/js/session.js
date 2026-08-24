@@ -7,6 +7,8 @@
    keeps a short-lived access token in memory and renews it from the cookie on
    page load and shortly before it expires. */
 
+import { t } from './i18n.js';
+
 let runtime = null;
 let renewTimer = null;
 const listeners = new Set();
@@ -54,20 +56,37 @@ async function gotrue(path, { method = 'POST', body, token } = {}) {
     body: body === undefined ? undefined : JSON.stringify(body)
   });
   const data = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(friendly(data));
+  if (!response.ok) {
+    const failure = new Error(friendly(data));
+    /* The sentence is for the person; this is for the code that has to decide
+       what to offer them next. */
+    failure.reason = data?.error_code || data?.code || '';
+    failure.status = response.status;
+    throw failure;
+  }
   return data;
 }
 
+/* Supabase answers in English. These are the handful a person actually meets,
+   said in their own language — and each one names what to do next, not merely
+   what went wrong. */
 function friendly(error) {
-  const message = error?.msg || error?.error_description || error?.message || 'Something went wrong.';
-  if (/invalid login credentials/i.test(message)) return 'That email and password do not match.';
-  if (/already registered|already exists/i.test(message)) return 'An account already uses that email.';
-  if (/email not confirmed/i.test(message)) return 'Confirm your email first — check your inbox.';
-  if (/password should be at least|weak/i.test(message)) return 'Use a longer password (at least 8 characters).';
-  if (/rate limit|too many|after \d+ seconds/i.test(message)) return 'Too many attempts. Wait a minute and try again.';
-  if (/invalid.*email|email address.*invalid/i.test(message)) return 'That email address is not valid.';
-  return message;
+  const message = error?.msg || error?.error_description || error?.message || '';
+  const code = error?.error_code || error?.code || '';
+  const is = pattern => pattern.test(message) || pattern.test(String(code));
+
+  if (is(/invalid login credentials|invalid_credentials/i)) return t('auth.errWrongPair');
+  if (is(/already registered|already exists|user_already_exists/i)) return t('auth.errTaken');
+  if (is(/email not confirmed|email_not_confirmed/i)) return t('auth.errUnconfirmed');
+  if (is(/password should be at least|weak_password|weak/i)) return t('auth.errWeak');
+  if (is(/rate limit|too many|over_email_send_rate_limit|after \d+ seconds/i)) return t('auth.errTooMany');
+  if (is(/invalid.*email|email address.*invalid|validation_failed/i)) return t('auth.errBadEmail');
+  if (is(/signup.*disabled|signup_disabled/i)) return t('auth.errSignupOff');
+  return message || t('common.wentWrong');
 }
+
+/** True when the only thing in the way is an email link nobody has clicked. */
+export const isUnconfirmed = error => error?.reason === 'email_not_confirmed';
 
 /* ---------- our session cookie ---------- */
 
@@ -175,15 +194,20 @@ export async function boot() {
 
 /* ---------- credentials ---------- */
 
+/* Where a confirmation or recovery link should land. GoTrue reads this from the
+   query string, not the body — it was documented in a comment here but never
+   actually sent, so every link fell back to the project's Site URL. It must also
+   be listed under Authentication → URL Configuration, or GoTrue ignores it and
+   falls back anyway. */
+const linkBack = path => `redirect_to=${encodeURIComponent(`${appUrl()}/#/${path}`)}`;
+
 export async function signUp({ email, password, name }) {
-  const data = await gotrue('/signup', {
+  const data = await gotrue(`/signup?${linkBack('queue')}`, {
     body: {
       email,
       password,
       data: { name },
-      // Where Supabase sends the confirmation link back to.
-      gotrue_meta_security: {},
-      options: undefined
+      gotrue_meta_security: {}
     }
   });
 
@@ -232,11 +256,11 @@ export function signOut() {
 }
 
 export async function sendReset(email) {
-  await gotrue('/recover', { body: { email, redirect_to: `${location.origin}/#/reset` } });
+  await gotrue(`/recover?${linkBack('reset')}`, { body: { email } });
 }
 
 export async function resendVerification(email) {
-  await gotrue('/resend', { body: { type: 'signup', email } });
+  await gotrue(`/resend?${linkBack('queue')}`, { body: { type: 'signup', email } });
 }
 
 export async function updatePassword(password) {

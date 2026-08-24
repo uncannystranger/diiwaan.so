@@ -845,7 +845,15 @@ const actions = {
       location.hash = '#/queue';
       toast(t('msg.welcomeBack'));
     } catch (error) {
-      ui.auth.errors = { form: error.message };
+      /* An account that exists but was never confirmed is not a wrong password —
+         it is one unclicked link. The screen that can resend it is more use than
+         an error above a form they filled in correctly. */
+      if (session.isUnconfirmed(error)) {
+        session.state.needsVerification = true;
+        ui.auth.email = email;
+      } else {
+        ui.auth.errors = { form: error.message };
+      }
     } finally {
       ui.busy = false;
       await navigate();
