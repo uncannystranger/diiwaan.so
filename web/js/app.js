@@ -1824,12 +1824,30 @@ if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
 /* Whatever happens during boot, the app must end up rendering something: a
    failure here used to be invisible, and with the render gate in place it would
    leave the splash on screen forever. */
+/* Whatever happens — a failed boot, a slow account load, a network that never
+   answers — something is on screen within a few seconds. The splash is a
+   loading state, never a destination. */
+const failsafe = setTimeout(() => {
+  if (booted) return;
+  console.warn('[diiwaan] boot overran; rendering without it');
+  booted = true;
+  navigate();
+}, 10_000);
+
 try {
   await session.boot();
-  if (session.isSignedIn()) await store.loadAccount();
+  if (session.isSignedIn()) {
+    await Promise.race([
+      store.loadAccount(),
+      new Promise(resolve => setTimeout(resolve, 8000))
+    ]);
+  }
 } catch (error) {
   console.error('Diiwaan could not start cleanly', error);
 } finally {
-  booted = true;
-  await navigate();
+  clearTimeout(failsafe);
+  if (!booted) {
+    booted = true;
+    await navigate();
+  }
 }

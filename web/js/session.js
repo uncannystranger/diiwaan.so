@@ -110,6 +110,18 @@ export async function restore() {
 
 /* ---------- lifecycle ---------- */
 
+/* Boot must finish. Every network call it makes is capped, because the one
+   thing the app must never do is hold a blank loading screen open waiting for a
+   server that is slow, asleep or unreachable. A call that overruns is treated as
+   a failure and the interface renders — signed out, with the reason on screen —
+   rather than not rendering at all. */
+function withDeadline(promise, ms, reason) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => setTimeout(() => reject(new Error(reason)), ms))
+  ]);
+}
+
 export async function boot() {
   /* Everything the browser does with identity needs this handshake first. When
      it fails — an unconfigured deployment, an API that cannot start, a network
@@ -117,7 +129,9 @@ export async function boot() {
      passwords that has nothing to do with the real problem. So the failure is
      recorded here, once, in the words of what actually happened. */
   try {
-    const response = await fetch('/api/config');
+    const response = await withDeadline(
+      fetch('/api/config'), 8000, 'The service took too long to answer.'
+    );
     const body = await response.json();
     if (!response.ok || !body.supabaseUrl || !body.supabaseAnonKey) {
       runtime = null;
@@ -146,10 +160,12 @@ export async function boot() {
 
   if (linkRefresh) {
     const type = fragment.get('type');
-    await handOver(linkRefresh).catch(() => null);
+    await withDeadline(handOver(linkRefresh), 8000, 'timeout').catch(() => null);
     history.replaceState(null, '', `${location.pathname}#/${type === 'recovery' ? 'reset' : 'queue'}`);
   } else {
-    await restore();
+    /* A session restore that stalls must not hold the whole interface hostage:
+       failing it simply means signed out, which is a state the app can render. */
+    await withDeadline(restore(), 8000, 'timeout').catch(() => null);
   }
 
   state.ready = true;

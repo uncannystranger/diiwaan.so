@@ -63,6 +63,16 @@ export function connect(path, { onEvent, onStatus, authenticated = false } = {})
           }
         });
 
+        /* A queue that does not exist, or one this device may not read, will
+           not exist on the next attempt either. Retrying a permanent answer
+           forever burns the customer's battery and the server's budget for
+           nothing — the page has already shown them why. */
+        if (response.status === 404 || response.status === 401 || response.status === 403) {
+          setStatus('closed');
+          closed = true;
+          return;
+        }
+
         if (!response.ok || !response.body) throw new Error(`stream ${response.status}`);
 
         attempt = 0;

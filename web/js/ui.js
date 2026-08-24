@@ -198,20 +198,24 @@ export const skeletonBlock = (height = 120) =>
   `<div class="skeleton" style="height:${height}px;border-radius:26px"></div>`;
 
 /** Errors say what happened and offer the way out. */
-export function errorPanel(error, { retryAction = 'retry', title = 'That did not load' } = {}) {
+export function errorPanel(error, { retryAction = 'retry', title = '' } = {}) {
   const offline = error?.offline;
+  const heading = title || t('cust.didNotLoad');
   return `
   <div class="card card--flat stack gap-12" role="alert">
     <div class="row-flex gap-12">
-      <span class="pill ${offline ? 'pill--warn' : 'pill--alert'}">${offline ? 'Offline' : 'Error'}</span>
-      <strong style="font-size:16px;font-weight:500">${esc(offline ? 'You appear to be offline' : title)}</strong>
+      <span class="pill ${offline ? 'pill--warn' : 'pill--alert'}">${offline ? t('status.offlineShort') : t('common.error')}</span>
+      <strong style="font-size:16px;font-weight:500">${esc(offline ? t('cust.offlineTitle') : heading)}</strong>
     </div>
-    <p class="hint">${esc(error?.message || 'Something went wrong.')}</p>
+    ${/* When the caller supplied a title it has already said this in the
+          reader's language; repeating the server's English sentence underneath
+          only makes the panel bilingual. */ ''}
+    ${title ? '' : `<p class="hint">${esc(error?.message || t('common.wentWrong'))}</p>`}
     ${(error?.details || []).length
       ? `<ul class="hint" style="margin:0;padding-left:18px">${error.details.map(d => `<li>${esc(d.message || d)}</li>`).join('')}</ul>`
       : ''}
     <div class="btn-row">
-      <button class="btn btn--quiet btn--auto btn--sm" data-action="${retryAction}">${icon('refresh', 15)}&nbsp; Try again</button>
+      <button class="btn btn--quiet btn--auto btn--sm" data-action="${retryAction}">${icon('refresh', 15)}&nbsp; ${t('common.retry')}</button>
     </div>
   </div>`;
 }
