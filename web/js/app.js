@@ -173,12 +173,17 @@ async function resolveRoute() {
   currentSlug = '';
   store.closeCustomerStream();
 
+  /* Someone who has just signed up has no session yet — Supabase withholds it
+     until the address is confirmed. The check therefore has to come before the
+     signed-in guard, or the route falls back to the sign-up form and the person
+     is left staring at the page they just submitted. */
+  if (session.state.needsVerification) return { kind: 'verify' };
+
   if (!session.isSignedIn()) {
     return { kind: AUTH_ROUTES[route.name] ? route.name : 'landing' };
   }
 
   if (!session.state.user) await store.loadAccount();
-  if (session.state.needsVerification) return { kind: 'verify' };
 
   const businesses = store.owner.businesses;
   if (!businesses.length) return { kind: 'setup' };
@@ -781,7 +786,6 @@ const actions = {
       const { needsVerification } = await session.signUp({ email, password, name });
       if (needsVerification) {
         toast(t('msg.checkEmail'), { timeout: 5000 });
-        resolvedRoute = { kind: 'verify' };
       } else {
         await store.loadAccount();
         if (session.state.user) await api.updateProfile({ name });
