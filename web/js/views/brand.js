@@ -329,7 +329,7 @@ export function brandView(ui, ctx) {
                   </div>
                 </div>
                 <div class="stack gap-8">
-                  <div class="eyebrow">Error correction</div>
+                  <div class="eyebrow">${t('brand.errorCorrection')}</div>
                   <div class="seg seg--sm">
                     ${['L', 'M', 'Q', 'H'].map(level => `
                       <button data-action="qr-level" data-value="${level}"

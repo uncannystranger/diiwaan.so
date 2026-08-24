@@ -79,7 +79,7 @@ function stepBody(index, ui, business, joinBase) {
               <button type="button" data-action="delete-service" data-id="${service.id}"
                       aria-label="${esc(t('setup.removeService', { name: service.name }))}" style="border:none;background:none;cursor:pointer;color:inherit;padding:0">×</button>
             </span>`).join('')}
-          <button type="button" class="chip chip--dashed" data-action="add-service">${icon('plus', 14)} Add</button>
+          <button type="button" class="chip chip--dashed" data-action="add-service">${icon('plus', 14)} ${t('common.add')}</button>
         </div>
       </div>
       <button class="btn" data-action="setup-queue" ${ui.busy ? 'disabled' : ''}>${t('setup.continue')}</button>
