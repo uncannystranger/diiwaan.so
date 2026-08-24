@@ -1,0 +1,128 @@
+# Every push to main becomes a release.
+#
+# The version is derived from the commits themselves rather than from a file
+# somebody has to remember to edit: a commit body saying BREAKING takes the
+# major, one adding something takes the minor, everything else takes a patch.
+# Notes are the commit subjects since the last tag, which is why those subjects
+# are written as sentences rather than as "fix stuff".
+
+name: Release
+
+on:
+  push:
+    branches: [main]
+    paths-ignore: ['**.md', '.github/**']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  check:
+    name: Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - run: npm ci
+
+      # Every module has to at least parse. Cheap, and it catches the kind of
+      # mistake that would otherwise reach a browser.
+      - name: Parse every module
+        run: |
+          fail=0
+          for file in $(git ls-files '*.js' '*.mjs' | grep -v '^web/vendor/'); do
+            node --check "$file" || { echo "::error file=$file::does not parse"; fail=1; }
+          done
+          exit $fail
+
+      # The QR encoder is pure and self-verifying, so it runs anywhere with no
+      # database, no network and no credentials.
+      - name: QR round-trips
+        run: npm run test:qr
+
+      - name: Both languages are complete
+        run: |
+          node -e "
+            const src = require('fs').readFileSync('web/js/i18n.js', 'utf8');
+            const keys = [...src.matchAll(/^\s{4}'([a-zA-Z.]+)':/gm)].map(m => m[1]);
+            const seen = {};
+            for (const key of keys) seen[key] = (seen[key] || 0) + 1;
+            const odd = Object.entries(seen).filter(([, n]) => n !== 2);
+            if (odd.length) {
+              console.error('Missing from one language:', odd.map(([k]) => k).join(', '));
+              process.exit(1);
+            }
+            console.log(Object.keys(seen).length + ' keys, complete in both languages');
+          "
+
+      - name: No secret went in with the code
+        run: |
+          if git grep -nE 'AIza[0-9A-Za-z_-]{20,}|-----BEGIN [A-Z ]*PRIVATE KEY|service_role' -- . ':!.github/workflows'; then
+            echo "::error::something that looks like a credential is in the tree"
+            exit 1
+          fi
+          echo "clean"
+
+  release:
+    name: Release
+    needs: check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Work out the next version
+        id: version
+        run: |
+          previous=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
+          IFS=. read -r major minor patch <<< "${previous#v}"
+
+          log=$(git log "${previous}..HEAD" --format='%B' 2>/dev/null || git log --format='%B')
+          if grep -qiE '^BREAKING' <<< "$log"; then
+            major=$((major + 1)); minor=0; patch=0
+          elif grep -qiE '^(Add|Give|Teach|Let|Introduce|Bring)' <<< "$(git log "${previous}..HEAD" --format='%s')"; then
+            minor=$((minor + 1)); patch=0
+          else
+            patch=$((patch + 1))
+          fi
+
+          echo "previous=$previous"        >> "$GITHUB_OUTPUT"
+          echo "next=v$major.$minor.$patch" >> "$GITHUB_OUTPUT"
+
+      - name: Write the notes
+        id: notes
+        run: |
+          previous="${{ steps.version.outputs.previous }}"
+          {
+            echo 'body<<NOTES'
+            if [ "$previous" != "v0.0.0" ]; then
+              git log "${previous}..HEAD" --no-merges --format='### %s%n%n%b%n'
+            else
+              git log --no-merges --format='### %s%n%n%b%n'
+            fi
+            echo
+            echo "**Live → <https://diiwaan-so.vercel.app>**"
+            echo 'NOTES'
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Tag and publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          next="${{ steps.version.outputs.next }}"
+          git tag -a "$next" -m "Diiwaan $next"
+          git push origin "$next"
+          gh release create "$next" \
+            --title "$next" \
+            --notes "${{ steps.notes.outputs.body }}" \
+            --latest
