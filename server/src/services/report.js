@@ -36,18 +36,18 @@ function periodRange(key) {
   return { ...period, since };
 }
 
-/** Only ever fetches from this deployment's own storage bucket. */
+/* Reads the logo straight out of the collection rather than fetching its own
+   URL over the network — same bytes, no round-trip, and nothing to time out
+   while somebody waits on a report. */
 async function fetchLogo(business) {
-  const prefix = `${config.supabase.url}/storage/v1/object/public/${config.supabase.brandingBucket}/`;
   const url = business.logo || business.branding?.logo || '';
-  if (!url.startsWith(prefix)) return null;
+  const id = /^\/api\/branding\/([a-f0-9]{24})/i.exec(url)?.[1];
+  if (!id) return null;
   try {
-    const response = await fetch(url, { signal: AbortSignal.timeout(4000) });
-    if (!response.ok) return null;
-    const type = response.headers.get('content-type') || '';
+    const asset = await col(collections.brandingAssets).findOne({ _id: new ObjectId(id) });
     // PDFKit embeds PNG and JPEG only.
-    if (!/image\/(png|jpe?g)/.test(type)) return null;
-    return Buffer.from(await response.arrayBuffer());
+    if (!asset || !/image\/(png|jpe?g)/.test(asset.mime)) return null;
+    return asset.data.buffer ? Buffer.from(asset.data.buffer) : Buffer.from(asset.data);
   } catch {
     return null;
   }

@@ -40,11 +40,18 @@ export async function createApp() {
     contentSecurityPolicy: {
       directives: {
         defaultSrc: ["'self'"],
-        // The design's Poppins/Lora come from Google Fonts; images may come from Supabase Storage.
+        // The design's Poppins/Lora come from Google Fonts; logos are served by this app itself.
         styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
         fontSrc: ["'self'", 'https://fonts.gstatic.com'],
-        imgSrc: ["'self'", 'data:', 'blob:', config.supabase.url].filter(Boolean),
-        connectSrc: ["'self'", config.supabase.url].filter(Boolean),
+        imgSrc: ["'self'", 'data:', 'blob:'],
+        /* Both providers are talked to straight from the browser over their
+           REST APIs, so both need naming here. Firebase's sign-in calls go to
+           identitytoolkit; its token refresh goes to securetoken. */
+        connectSrc: [
+          "'self'",
+          'https://identitytoolkit.googleapis.com',
+          'https://securetoken.googleapis.com'
+        ],
         scriptSrc: ["'self'"],
         objectSrc: ["'none'"],
         // Nothing here is meant to be framed, and nothing here posts to another
@@ -102,14 +109,22 @@ export async function createApp() {
     message: { error: 'Too many requests — give it a moment.' }
   }));
 
-  /* Public runtime configuration: the browser needs the Supabase URL and its
-     publishable key, and neither is a secret. Nothing else is exposed. */
+  /* Public runtime configuration. Every value here is one the browser is meant
+     to hold. The Firebase web api key is
+     published by Firebase itself and identifies the project rather than
+     authorising anything — access is decided by Firebase's own rules and by this
+     server verifying the signed token. No server credential is ever included. */
   app.get('/api/config', (req, res) => {
     res.json({
-      supabaseUrl: config.supabase.url,
-      supabaseAnonKey: config.supabase.anonKey,
-      brandingBucket: config.supabase.brandingBucket,
-      googleAuth: config.supabase.googleAuth,
+      googleAuth: config.firebase.googleAuth,
+      firebase: config.firebase.projectId && config.firebase.apiKey
+        ? {
+            projectId: config.firebase.projectId,
+            apiKey: config.firebase.apiKey,
+            authDomain: config.firebase.authDomain,
+            appId: config.firebase.appId
+          }
+        : null,
       appUrl: config.appUrl,
       env: config.env
     });
@@ -134,7 +149,12 @@ export async function createApp() {
   app.use('/api/auth', authRoutes);
   app.use('/api/businesses', businessRoutes);
   app.use('/api/public', publicRoutes);
-  app.use('/api/uploads', uploadRoutes);
+  /* Mounted at the root of the API rather than under a prefix of its own: it
+     owns POST /api/businesses/:id/logo, which belongs beside the business it
+     changes, and GET /api/branding/:asset, which is the public URL every stored
+     logo is served from. Express falls through to the next router on no match,
+     so sharing the /api/businesses prefix is fine. */
+  app.use('/api', uploadRoutes);
   app.use('/api', notFound);
 
   /* Frontend. Every non-API path serves the app shell so /j/<slug> deep links work. */
