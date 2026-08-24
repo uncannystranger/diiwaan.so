@@ -17,7 +17,6 @@ import uploadRoutes from './routes/uploads.js';
 
 export async function createApp() {
   assertConfig();
-  await connect();
 
   const app = express();
   app.set('trust proxy', 1);
@@ -118,6 +117,17 @@ export async function createApp() {
 
   app.get('/api/health', async (req, res) => {
     res.json({ ok: true, at: new Date().toISOString() });
+  });
+
+  /* The database is opened on the first request that needs it, not at boot.
+     /api/config is what the browser waits on before it can render anything, and
+     it is answered entirely from memory — so a cold start no longer holds the
+     loading screen open while a cluster handshake completes. */
+  app.use('/api', async (req, res, next) => {
+    try {
+      await connect();
+      next();
+    } catch (error) { next(error); }
   });
 
   app.use('/api', withUser);

@@ -342,11 +342,25 @@ export async function connect() {
   }
   db = client.db(config.mongo.database);
 
-  for (const name of Object.values(collections)) await ensureCollection(name);
-  await ensureIndexes();
+  /* Applying validators and indexes is eight round trips to the cluster. On a
+     long-running server that cost is paid once at boot; on a serverless host it
+     is paid on every cold start, in front of the first person to open the page.
+     It is idempotent, so in production it runs behind the request and any
+     failure simply retries on the next cold start. */
+  const migration = runMigrations();
+  if (config.env === 'production') {
+    migration.catch(error => console.error('[db] schema migration failed', error));
+  } else {
+    await migration;
+  }
 
   console.log(`[db] connected to ${config.mongo.database}`);
   return db;
+}
+
+async function runMigrations() {
+  for (const name of Object.values(collections)) await ensureCollection(name);
+  await ensureIndexes();
 }
 
 export const getDb = () => {

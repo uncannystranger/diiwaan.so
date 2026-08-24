@@ -5,20 +5,45 @@ import * as store from './state.js';
 import { api, ApiError } from './api.js';
 import { cycleTheme, setTheme, retint, preference as themePreference } from './theme.js';
 import { esc } from './ui.js';
-import { qrSvg } from './qr.js';
 import { prepareLogo, humanSize, MAX_INPUT_BYTES } from './image.js';
 import { presetById, deriveFromPrimary, completeBranding, contrast, readableOn, paletteVars } from './palette.js';
 import { enableAlerts, announce, holdScreenAwake, permission as notificationPermission } from './notify.js';
 import { buzz } from './haptics.js';
 import { t, toggleLanguage } from './i18n.js';
 import { landingView, signUpView, signInView, forgotView, resetView, verifyView } from './views/auth.js';
-import { setupView } from './views/setup.js';
-import { queueView, overviewView } from './views/console.js';
-import { brandView } from './views/brand.js';
-import { settingsView } from './views/settings.js';
-import { signView } from './views/sign.js';
-import { displayView } from './views/display.js';
-import { joinView, ticketView, doneView, pendingView, customerLoading, customerErrorView } from './views/customer.js';
+/* Only the entry screens are part of the first download. The console, the brand
+   studio, the printed sign, the display and the customer page are each fetched
+   the first time a route needs them — someone who opens the landing page and
+   leaves never pays for the dashboard. */
+const modules = new Map();
+const lazy = path => {
+  if (!modules.has(path)) modules.set(path, import(path));
+  return modules.get(path);
+};
+
+const SCREEN_MODULES = {
+  setup: './views/setup.js',
+  queue: './views/console.js',
+  overview: './views/console.js',
+  brand: './views/brand.js',
+  settings: './views/settings.js',
+  sign: './views/sign.js',
+  display: './views/display.js',
+  customer: './views/customer.js'
+};
+
+/** Resolved modules, once loaded. screenFor stays synchronous. */
+const screens = {};
+
+async function loadScreen(kind) {
+  const path = SCREEN_MODULES[kind];
+  if (!path) return;
+  Object.assign(screens, await lazy(path));
+  // The console frame is shared by the sign and display screens.
+  if (kind === 'sign' || kind === 'display' || kind === 'brand' || kind === 'settings') {
+    Object.assign(screens, await lazy('./views/console.js'));
+  }
+}
 
 const root = document.getElementById('app');
 
@@ -280,38 +305,38 @@ function screenFor(resolved) {
     case 'signup': case 'signin': case 'forgot': case 'reset':
       return AUTH_ROUTES[resolved.kind](ui);
     case 'verify': return verifyView(ui, session.state.user?.email || ui.auth.email);
-    case 'setup': return setupView({ ...ui, services: store.owner.services }, store.owner.business, joinBase());
+    case 'setup': return screens.setupView({ ...ui, services: store.owner.services }, store.owner.business, joinBase());
     case 'customer': return customerScreen();
     default: {
       const ctx = consoleContext();
-      if (!ctx.business) return customerLoading();
+      if (!ctx.business) return screens.customerLoading ? screens.customerLoading() : '';
       /* `ui.busy` is the boolean a form uses for its own submit; the queue's
          in-flight actions are a Set and travel in the context. They used to
          share this one name, and assigning the Set here left every submit
          button permanently disabled. */
       const context = { ...ctx, busy: store.owner.busy };
-      if (resolved.kind === 'overview') return overviewView(ui, context);
-      if (resolved.kind === 'brand') return brandView({ ...ui, services: store.owner.services }, context);
-      if (resolved.kind === 'settings') return settingsView(ui, context);
-      if (resolved.kind === 'sign') return signView(ui, context);
-      if (resolved.kind === 'display') return displayView(ui, context);
-      return queueView(ui, context);
+      if (resolved.kind === 'overview') return screens.overviewView(ui, context);
+      if (resolved.kind === 'brand') return screens.brandView({ ...ui, services: store.owner.services }, context);
+      if (resolved.kind === 'settings') return screens.settingsView(ui, context);
+      if (resolved.kind === 'sign') return screens.signView(ui, context);
+      if (resolved.kind === 'display') return screens.displayView(ui, context);
+      return screens.queueView(ui, context);
     }
   }
 }
 
 function customerScreen() {
   const { view, loading, error, connection, pendingJoin } = store.customer;
-  if (loading && !view) return customerLoading();
-  if (!view) return customerErrorView(error || new ApiError(404, 'We could not find that queue.'));
+  if (loading && !view) return screens.customerLoading();
+  if (!view) return screens.customerErrorView(error || new ApiError(404, 'We could not find that queue.'));
 
   const context = { view, connection, error };
-  if (pendingJoin) return pendingView(ui, context);
+  if (pendingJoin) return screens.pendingView(ui, context);
   if (!view.ticket) {
     const wasHolding = parseRoute().name === 't';
-    return wasHolding ? doneView(ui, context) : joinView(ui, context);
+    return wasHolding ? screens.doneView(ui, context) : screens.joinView(ui, context);
   }
-  return ticketView(ui, context);
+  return screens.ticketView(ui, context);
 }
 
 /* The active brand is painted onto the document root, so every derived token —
@@ -552,7 +577,11 @@ function scalePreviews() {
 window.addEventListener('resize', scalePreviews);
 
 async function navigate() {
-  resolvedRoute = await resolveRoute();
+  const next = await resolveRoute();
+  // The screen's module is fetched before it is rendered, so render() stays
+  // synchronous and never paints a half-loaded view.
+  await loadScreen(next.kind);
+  resolvedRoute = next;
   render();
 }
 
@@ -715,7 +744,8 @@ function downloadBlob(blob, filename) {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-const currentQrSvg = (size = 1024) => {
+const currentQrSvg = async (size = 1024) => {
+  const { qrSvg } = await lazy('./qr.js');
   const b = business();
   const qr = b.qrSettings;
   return qrSvg(`${joinBase()}/j/${b.slug}`, {
@@ -1224,9 +1254,9 @@ const actions = {
       .then(() => toast(t('msg.linkCopied')))
       .catch(() => toast(t('msg.copyFailed'), { variant: 'warn' }));
   },
-  'download-qr'(event, el) {
+  async 'download-qr'(event, el) {
     const b = business();
-    const svg = currentQrSvg(1024);
+    const svg = await currentQrSvg(1024);
     const filename = `${b.slug}-qr`;
     if (el.dataset.value === 'svg') {
       downloadBlob(new Blob([svg], { type: 'image/svg+xml' }), `${filename}.svg`);

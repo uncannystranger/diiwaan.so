@@ -35,21 +35,21 @@
       /* The queue advancing: one number gives way to the next, forever. */
       /* The first number is painted; the other two are stacked behind it and
          only appear once the loop is running. A frozen banner shows A-24. */
-      .tick { animation: tick 9s ease-in-out infinite; }
+      .tick { animation: tick 9s cubic-bezier(.33,0,.15,1) infinite; }
       .t2, .t3 { opacity: 0 }
       /* A negative delay starts the first number past its own fade-in, so a
          banner frozen at zero still shows a number rather than an empty card. */
       .t1 { animation-delay: -.7s } .t2 { animation-delay: 2.3s } .t3 { animation-delay: 5.3s }
       @keyframes tick {
-        0%   { opacity: 0; transform: translateY(10px) }
-        6%   { opacity: 1; transform: translateY(0) }
-        30%  { opacity: 1; transform: translateY(0) }
-        36%  { opacity: 0; transform: translateY(-10px) }
-        100% { opacity: 0; transform: translateY(-10px) }
+        0%   { opacity: 0; transform: translateY(9px) }
+        5%   { opacity: 1; transform: translateY(0) }
+        31%  { opacity: 1; transform: translateY(0) }
+        37%  { opacity: 0; transform: translateY(-9px) }
+        100% { opacity: 0; transform: translateY(-9px) }
       }
 
       /* The line someone is standing in, filling towards their turn. */
-      .fill { animation: fill 9s cubic-bezier(.2,.8,.2,1) infinite; }
+      .fill { animation: fill 9s cubic-bezier(.32,.72,.2,1) infinite; }
       @keyframes fill {
         0%   { width: 26px }
         30%  { width: 112px }
@@ -58,10 +58,13 @@
         100% { width: 240px }
       }
 
-      .pulse { animation: pulse 3s ease-in-out infinite; transform-origin: center; }
-      @keyframes pulse { 0%,100% { opacity: .55 } 50% { opacity: 1 } }
+      .pulse { animation: pulse 3.2s cubic-bezier(.4,0,.6,1) infinite; transform-origin: center; }
+      @keyframes pulse {
+        0%, 100% { opacity: .45; r: 3.4 }
+        50%      { opacity: 1;   r: 4.4 }
+      }
 
-      .scan { animation: scan 3.4s cubic-bezier(.4,0,.2,1) infinite; }
+      .scan { animation: scan 3.8s cubic-bezier(.45,0,.2,1) infinite; }
       @keyframes scan {
         0%, 12%   { transform: translateY(0);  opacity: 0 }
         18%       { opacity: 1 }

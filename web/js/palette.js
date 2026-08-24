@@ -206,7 +206,27 @@ export function completeBranding(branding = {}) {
     };
   }
 
-  const fallback = PRESETS[0];
+  /* No preset and no colours of their own — the signed-out screens, a brand new
+     account — means the house palette, whole. Deriving it from the primary
+     instead produced a warm near-black and a rose third hue, which is how the
+     landing page lost its navy. */
+  const house = PRESETS[0];
+  const hasOwnColours = Boolean(
+    branding.primary || branding.emphasis || branding.accent || branding.base || branding.tint
+  );
+  if (!hasOwnColours) {
+    return {
+      ...branding,
+      primary: house.primary,
+      emphasis: house.emphasis,
+      accent: house.accent,
+      base: house.base,
+      tint: house.tint,
+      surface: branding.surface || 'aurora'
+    };
+  }
+
+  const fallback = house;
   const primary = branding.primary || fallback.primary;
   const derived = deriveFromPrimary(primary);
   return {

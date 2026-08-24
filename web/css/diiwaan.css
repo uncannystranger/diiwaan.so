@@ -2612,3 +2612,64 @@ html.retint, html.retint *, html.retint *::before, html.retint *::after {
     background: var(--surface-lifted);
   }
 }
+
+/* ---------- entry screens: landing, create, sign ----------
+
+   These three are one experience and share a rhythm: a generous headline, a
+   card that holds the work, and controls that answer immediately. Everything
+   here is transform and opacity only, so it stays on the compositor and costs
+   nothing on a mid-range phone. */
+
+.stage--entry h1 {
+  letter-spacing: -.025em;
+  line-height: 1.08;
+  text-wrap: balance;
+}
+.stage--entry .lead { max-width: 54ch; text-wrap: pretty; }
+
+/* The primary action carries a soft halo in the brand colour — enough to draw
+   the eye first without shouting. */
+.stage--entry .btn:not(.btn--ghost):not(.btn--quiet):not(.btn--link):not(.btn--google) {
+  box-shadow: 0 10px 30px -14px color-mix(in srgb, var(--brand) 70%, transparent);
+}
+.stage--entry .btn:not(.btn--ghost):not(.btn--quiet):not(.btn--link):not(.btn--google):hover {
+  box-shadow: 0 14px 34px -12px color-mix(in srgb, var(--brand) 80%, transparent);
+}
+
+/* Fields answer to focus by lifting very slightly out of the card. */
+.stage--entry .field input,
+.stage--entry .field textarea {
+  transition: border-color var(--fast) var(--ease),
+              box-shadow var(--fast) var(--ease),
+              transform var(--fast) var(--ease);
+}
+.stage--entry .field input:focus,
+.stage--entry .field textarea:focus { transform: translateY(-1px); }
+
+/* A field that failed shakes once — brief, and only on the field itself. */
+.field--bad input, .field--bad textarea { animation: field-nudge .32s var(--ease); }
+@keyframes field-nudge {
+  0%, 100% { transform: translateX(0); }
+  25%      { transform: translateX(-3px); }
+  75%      { transform: translateX(3px); }
+}
+
+/* The error text arrives rather than appearing. */
+.error-text { animation: error-in .24s var(--ease); }
+@keyframes error-in {
+  from { opacity: 0; transform: translateY(-3px); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* The password strength meter fills smoothly as you type. */
+.stage--entry .row-flex[aria-hidden] span { transition: background var(--mid) var(--ease); }
+
+/* A submitting button says so in place, without the layout moving. */
+.btn[aria-busy="true"] { cursor: progress; }
+.btn[aria-busy="true"] .spinner { margin-inline-end: 2px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .stage--entry .field input:focus,
+  .stage--entry .field textarea:focus { transform: none; }
+  .field--bad input, .field--bad textarea, .error-text { animation: none; }
+}

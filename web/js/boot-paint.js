@@ -22,7 +22,15 @@
     // The customer page for one business must not borrow another's colours, so
     // the remembered paint is filed under the queue it belongs to.
     var path = (location.hash.replace(/^#\/?/, '') || location.pathname.slice(1)).split('/');
-    var key = (path[0] === 'j' || path[0] === 't') && path[1] ? 'q:' + path[1] : 'owner';
+    var customer = (path[0] === 'j' || path[0] === 't') && path[1];
+
+    /* The signed-out screens are Diiwaan's own, not a business's. Restoring the
+       last account's colours here painted the landing page in whatever palette
+       that owner had chosen. */
+    var entry = { '': 1, signup: 1, signin: 1, forgot: 1, reset: 1 };
+    if (!customer && entry[path[0]]) return;
+
+    var key = customer ? 'q:' + path[1] : 'owner';
 
     var saved = JSON.parse(localStorage.getItem('diiwaan:paint:' + key) || 'null');
     if (saved && typeof saved.style === 'string') {
