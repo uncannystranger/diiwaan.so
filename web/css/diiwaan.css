@@ -2685,12 +2685,13 @@ html.retint, html.retint *, html.retint *::before, html.retint *::after {
 .entry-cta:not(.entry-cta--primary) { flex: 1 1 140px; }
 
 @media (max-width: 560px) {
-  /* nowrap matters as much as the direction: a wrapping column flexes into two
-     columns, which is exactly the side-by-side layout this is meant to undo. */
+  /* On a phone .btn-row is a two-column grid — good for pairs of short queue
+     actions, wrong for these two, whose primary label is a full sentence. The
+     entry pair gets a single column. */
   .stage--entry .btn-row {
-    flex-direction: column;
-    flex-wrap: nowrap;
-    align-items: stretch;
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 12px;
   }
-  .stage--entry .btn-row > .entry-cta { flex: 0 0 auto; width: 100%; }
+  .stage--entry .btn-row > .entry-cta { width: 100%; }
 }
