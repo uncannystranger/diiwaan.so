@@ -318,8 +318,28 @@ export async function connect() {
   let uri = config.mongo.uri;
   if (!uri && config.mongo.useMemoryServer) uri = await localDevelopmentMongo();
 
-  client = new MongoClient(uri, { retryWrites: true });
-  await client.connect();
+  /* A serverless invocation has seconds, not minutes. The driver's default is to
+     keep looking for a reachable server for 30s, which outlives the function and
+     leaves the request hanging with nothing in the logs — the least debuggable
+     failure there is. Eight seconds is long enough for a cold TLS handshake to a
+     distant region and short enough to still return a real error. */
+  client = new MongoClient(uri, {
+    retryWrites: true,
+    serverSelectionTimeoutMS: 8000,
+    connectTimeoutMS: 8000
+  });
+
+  try {
+    await client.connect();
+  } catch (error) {
+    /* Almost always one of two things, and the distinction matters: the wrong
+       password, or an IP the cluster will not accept. Say which. */
+    const message = String(error?.message || error);
+    const hint = /authentication failed|bad auth/i.test(message)
+      ? 'The database refused the username or password in MONGODB_URI.'
+      : 'The database could not be reached. If it is MongoDB Atlas, add 0.0.0.0/0 under Network Access — a serverless host has no fixed IP to allowlist.';
+    throw new Error(`${hint} (${message})`);
+  }
   db = client.db(config.mongo.database);
 
   for (const name of Object.values(collections)) await ensureCollection(name);
