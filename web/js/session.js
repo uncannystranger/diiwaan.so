@@ -61,6 +61,14 @@ export const isInitializing = () => state.phase === 'initializing';
  * the stall still counts; anything else is an error state, because "we could
  * not find out" is not the same as "nobody is signed in".
  */
+/* What boot actually established, in one place, because two paths now reach it:
+   a restore that answered in time, and one that answered afterwards. */
+function settlePhase() {
+  state.phase = isSignedIn() ? 'authenticated'
+    : state.backendError ? 'error'
+      : 'unauthenticated';
+}
+
 export function abandonBoot() {
   if (state.phase !== 'initializing') return;
   state.phase = isSignedIn() ? 'authenticated' : 'error';
@@ -135,18 +143,38 @@ function adopt(payload) {
 
 async function handOver(refreshToken) {
   const response = await sessionFetch('POST', { refreshToken });
-  if (!response.ok) throw new Error('We could not start your session. Please try again.');
+  if (!response.ok) {
+    /* Every failure here used to read "we could not start your session", which
+       is true and useless. The credentials were right — Firebase already
+       accepted them — so the person is left retyping a password that was never
+       the problem. The two that actually happen are worth naming: too many
+       attempts in a minute, and a service that is not answering. */
+    const failure = new Error(
+      response.status === 429 ? t('auth.errTooMany')
+        : response.status >= 500 ? t('auth.serviceUnreachable')
+          : t('auth.errSessionStart')
+    );
+    failure.status = response.status;
+    throw failure;
+  }
   return adopt(await response.json());
 }
 
+/** True while a restore is in flight — we do not yet know whether anyone is signed in. */
+let restoring = false;
+export const isRestoring = () => restoring;
+
 /** Restores the session held in the HttpOnly cookie; null when there is none. */
 export async function restore() {
+  restoring = true;
   try {
     const response = await sessionFetch('GET');
     if (!response.ok || response.status === 204) return null;
     return adopt(await response.json());
   } catch {
     return null;
+  } finally {
+    restoring = false;
   }
 }
 
@@ -209,17 +237,43 @@ export async function boot() {
     history.replaceState(null, '', `${location.pathname}#/${back}`);
   }
 
-  /* A session restore that stalls must not hold the whole interface hostage:
-     failing it simply means signed out, which is a state the app can render. */
-  if (!isSignedIn()) await withDeadline(restore(), 8000, 'timeout').catch(() => null);
+  /* A session restore that stalls must not hold the whole interface hostage —
+     but giving up waiting is not the same as finding out there is no session,
+     and boot used to conclude the second from the first. A restore slower than
+     this deadline left a signed-in owner on the public landing page, and left
+     them there: the restore completed a moment later and flipped the phase, but
+     nothing re-resolved the route, so the landing page simply stayed until the
+     person clicked something. Measured at an 11-second restore, the app showed
+     landing from 11.3s to 20s while the session endpoint answered 200.
 
-  /* Set exactly once, at the end of boot, and only from what boot actually
-     established. A backend we could not reach is an error, not a signed-out
-     person — the difference decides whether the interface offers a password
-     field or explains that the service is unreachable. */
-  state.phase = isSignedIn() ? 'authenticated'
-    : state.backendError ? 'error'
-      : 'unauthenticated';
+     So the two outcomes are now distinguished. A restore that answers is the
+     truth, either way. A restore that overruns is unknown, and `restore()`
+     keeps running — when it lands, adopt() flips the phase and the router
+     re-resolves, because app.js now treats a change in authenticated-ness as a
+     routing event rather than a repaint. */
+  let pending = null;
+  if (!isSignedIn()) {
+    pending = restore();
+    await withDeadline(pending, 8000, 'timeout').catch(() => {});
+  }
+
+  /* A restore still in flight is not an answer, and the public landing page is
+     not a neutral thing to show while waiting for one — an owner watching their
+     own dashboard get replaced by a marketing page has been told they are
+     signed out. So the phase stays 'initializing', which keeps the boot screen
+     up, and the pending restore settles it when it lands.
+     
+     This is not a delay papering over a race: nothing is being waited out. The
+     state is genuinely unknown, the interface says so with a loading screen,
+     and the moment it becomes known the router re-resolves. app.js keeps an
+     absolute ceiling so an answer that never comes still ends in a rendered
+     page rather than a spinner forever. */
+  if (pending && restoring) {
+    pending.finally(() => { settlePhase(); emit(); });
+    return runtime;
+  }
+
+  settlePhase();
   emit();
   return runtime;
 }
@@ -252,6 +306,17 @@ export async function signUp({ email, password, name }) {
  */
 export async function startGoogle() {
   requireProvider();
+
+  /* The server walks the first step of the real flow once an hour and knows
+     whether Google accepts this origin's redirect URI. When it does not, saying
+     so here is kinder and more honest than sending somebody to Google to read
+     an OAuth error page about a misconfiguration they cannot fix. */
+  if (runtime && runtime.googleAuth === false) {
+    const failure = new Error(t('auth.googleUnavailable'));
+    failure.reason = 'google_unavailable';
+    throw failure;
+  }
+
   try {
     /* Where to come back to. The round trip through Google replaces this page,
        so the intended destination cannot be held in memory across it — and

@@ -322,6 +322,7 @@ npm run test:escalation   # 28 checks: self-promotion, mass assignment, operator
 npm run test:transitions  # 32 checks: the ticket state machine, and every impossible move
 npm run test:status-input # 34 checks: every shape a status can arrive in, verified in the database
 npm run test:role-gate    # 16 checks: the authorisation gate fails closed on an unknown role
+npm run test:auth-boot    # 13 checks: the boot state machine, including a slow session restore
 npm run test:tenancy      # 32 cross-tenant access attempts, every one refused
 npm run test:concurrency  # 11 races: simultaneous joins, NEXT presses, double-close
 npm run test:qr           # 33 QR encode/decode round-trips

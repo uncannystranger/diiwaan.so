@@ -646,7 +646,32 @@ function scheduleRender() {
 }
 
 store.subscribe(scheduleRender);
-session.onSessionChange(() => render());
+/* Signing in or out changes which screen belongs on the page, so it has to
+   re-resolve the route and not merely repaint the one already chosen.
+ *
+ * Repainting was the bug behind the landing page that would not go away. A
+ * session restore slower than boot's deadline finished after the router had
+ * already settled on `landing`; adopt() flipped the phase to authenticated and
+ * emitted, this listener repainted — with the same stale route — and the owner
+ * sat on the public page holding a valid session until they happened to click
+ * something that called navigate().
+ *
+ * Only a change is a routing event. Every other emit — a renewed token, a
+ * profile arriving — is a repaint, which is what it was always meant to be. */
+let lastAuthenticated = null;
+let reroutePending = false;
+
+session.onSessionChange(() => {
+  const authenticated = session.isSignedIn();
+  const changed = lastAuthenticated !== null && authenticated !== lastAuthenticated;
+  lastAuthenticated = authenticated;
+
+  if (!booted || !changed) return render();
+  // Several emits can land in one tick; one re-resolve answers all of them.
+  if (reroutePending) return;
+  reroutePending = true;
+  queueMicrotask(() => { reroutePending = false; navigate(); });
+});
 
 /* The display's controls belong to whoever is setting it up, not to the room.
    After a few still seconds they fade; any movement brings them back. */
@@ -1905,13 +1930,35 @@ document.addEventListener('visibilitychange', () => {
    This does not paint over an unresolved auth state; it ends it. abandonBoot()
    settles the phase to what is actually known, so the render that follows is
    made from a decided state rather than from a guess that beat the clock. */
+/* Two limits, because "slow" and "never" deserve different answers.
+ *
+ * At the first, boot has overrun and we render whatever is known — unless a
+ * session restore is still in flight, in which case the honest screen is still
+ * the loading one: showing the landing page to somebody who turns out to be
+ * signed in is worse than making them wait another moment.
+ *
+ * At the second there is no more waiting to do. Whatever is outstanding is
+ * treated as failed and the interface renders, because a spinner that never
+ * ends is the one outcome with no recovery at all. */
+const RENDER_AT = 10_000;
+const GIVE_UP_AT = 25_000;
+
 const failsafe = setTimeout(() => {
   if (booted) return;
+  if (session.isRestoring()) return;   // the ceiling below still applies
   console.warn('[diiwaan] boot overran; resolving without it');
   session.abandonBoot();
   booted = true;
   navigate();
-}, 10_000);
+}, RENDER_AT);
+
+const ceiling = setTimeout(() => {
+  if (booted) return;
+  console.warn('[diiwaan] session restore never answered; rendering signed out');
+  session.abandonBoot();
+  booted = true;
+  navigate();
+}, GIVE_UP_AT);
 
 try {
   await session.boot();
@@ -1925,11 +1972,25 @@ try {
   console.error('Diiwaan could not start cleanly', error);
 } finally {
   clearTimeout(failsafe);
-  // A boot that threw may have left the phase unset; nothing may render until
-  // it is decided, so decide it here rather than leaving the splash up.
-  session.abandonBoot();
-  if (!booted) {
-    booted = true;
-    await navigate();
+
+  /* A restore still running is the one case where boot deliberately returns
+     without an answer. Leave the boot screen up and let it finish; the phase
+     change re-resolves the route on its own, and the ceiling above is what
+     guarantees this ends. */
+  if (session.isRestoring()) {
+    session.onSessionChange(function once() {
+      if (session.isInitializing()) return;
+      clearTimeout(ceiling);
+      if (!booted) { booted = true; navigate(); }
+    });
+  } else {
+    clearTimeout(ceiling);
+    // A boot that threw may have left the phase unset; nothing may render until
+    // it is decided, so decide it here rather than leaving the splash up.
+    session.abandonBoot();
+    if (!booted) {
+      booted = true;
+      await navigate();
+    }
   }
 }

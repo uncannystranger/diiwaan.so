@@ -30,8 +30,15 @@ const googleMark = (size = 18) => `
 /* Offered under the primary action rather than above it: an owner creating a
    queue for the first time is choosing how to sign in, not being sold a
    provider. It only appears when Google is actually switched on. */
+/* Always rendered.
+ *
+ * It used to be withheld whenever the server's probe said Google would refuse
+ * the redirect, which kept anyone from meeting a dead control — and also meant
+ * the product silently lost a sign-in method with no explanation to the person
+ * looking for it. A control that is part of the product should be visible and
+ * should answer honestly when pressed. So the probe no longer decides whether
+ * the button exists; it decides what pressing it says. */
 function googleButton(ui) {
-  if (!googleAuthAvailable()) return configNote();
 
   /* Disabled while it is working as well as while the form is: this navigates
      away, so a second press would start a second authorisation and discard the
@@ -45,7 +52,8 @@ function googleButton(ui) {
       ${working ? '<span class="spinner"></span>' : googleMark(19)}
       <span>${working ? t('auth.googleGoing') : t('auth.google')}</span>
     </button>
-    <p class="hint center">${t('auth.googleHint')}</p>`;
+    <p class="hint center">${t('auth.googleHint')}</p>
+    ${configNote()}`;
 }
 
 /* Why the button is absent — shown only where the server chose to say, which is

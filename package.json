@@ -19,7 +19,8 @@
     "test:transitions": "node server/test/transitions.test.mjs",
     "test:role-gate": "node server/test/role-gate.test.mjs",
     "test:status-input": "node server/test/status-input.test.mjs",
-    "test:role-injection": "node server/test/role-injection.test.mjs"
+    "test:role-injection": "node server/test/role-injection.test.mjs",
+    "test:auth-boot": "node web/test/auth-boot.test.mjs"
   },
   "engines": {
     "node": ">=20"

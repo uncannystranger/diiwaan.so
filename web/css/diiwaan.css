@@ -1081,9 +1081,29 @@ input[type="range"] { accent-color: var(--brand); width: 100%; }
 /* Canvas desktop: serving panel and waiting list side by side, never denser. */
 @media (min-width: 1080px) {
   .workspace--queue { grid-template-columns: minmax(0, 1.15fr) minmax(340px, .85fr); align-content: stretch; }
+}
+
+/* The desk fills the viewport rather than scrolling as a page: the serving
+   panel and the waiting list each keep their own scroll, so the numbers a
+   cashier watches never move.
+
+   That is only true when the viewport is tall enough to hold it, and the height
+   condition used to be missing. Below it the shell still claimed 100dvh while
+   the workspace clipped whatever did not fit — measured at 1280x660, a
+   perfectly ordinary laptop, 172 pixels were unreachable and the Waiting and
+   Next number cards sat below the fold with no way to scroll to them. The page
+   could not scroll because the shell was fixed; the workspace could not scroll
+   because it was overflow:hidden. The dashboard was locked.
+
+   Two changes, and both are needed. The shell now engages only when there is
+   room for it, so a short screen gets ordinary page scrolling instead of a
+   nested one. And when it does engage the workspace scrolls rather than clips,
+   because layout maths — padding, gaps, a long business name wrapping — can
+   always overshoot by a little, and a little is enough to hide a control. */
+@media (min-width: 1080px) and (min-height: 720px) {
   .screen--fixed { height: 100dvh; }
   .screen--fixed main { flex: 1; min-height: 0; display: flex; }
-  .screen--fixed .workspace { overflow: hidden; flex: 1; }
+  .screen--fixed .workspace { overflow-y: auto; flex: 1; }
   /* The footer is part of the layout, not something pushed past the fold. */
   .screen--fixed .console-footer { flex: none; }
 }
