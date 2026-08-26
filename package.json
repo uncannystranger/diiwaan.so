@@ -9,7 +9,11 @@
     "start": "node server/src/index.js",
     "seed": "node server/scripts/seed-development-data.js",
     "test:api": "node server/test/api.test.mjs",
-    "test:qr": "node web/test/qr-selftest.mjs"
+    "test:qr": "node web/test/qr-selftest.mjs",
+    "test:tenancy": "node server/test/tenancy.test.mjs",
+    "test:concurrency": "node server/test/concurrency.test.mjs",
+    "test:palette": "node server/test/palette.test.mjs",
+    "test:shell": "node web/test/shell-precache.test.mjs"
   },
   "engines": {
     "node": ">=20"

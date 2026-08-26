@@ -240,15 +240,36 @@ export async function callNext(business, queue, { actorId = '' } = {}) {
   return { ticket: claimed, queue: updated };
 }
 
+/* A guarded update tells us it did not apply, but not why, and the two reasons
+   deserve different answers.
+
+   A ticket that is not in this queue must read as absent — exactly like a
+   made-up id — so that a caller holding another tenant's real identifier cannot
+   tell it apart from a fabricated one by watching 404 turn into 409. A ticket
+   that is genuinely here and simply in the wrong state is a conflict, and
+   saying so is what lets a desk understand a double tap.
+
+   Every ticket action routes its failure through here, so all of them answer
+   consistently; they used to disagree, with skip and close reporting a conflict
+   for tickets they had never seen. */
+async function refuseTicket(queue, ticketId, conflictMessage) {
+  const exists = await tickets().findOne(
+    { _id: new ObjectId(ticketId), queueId: queue._id },
+    { projection: { _id: 1 } }
+  );
+  throw exists ? new HttpError(409, conflictMessage) : new HttpError(404, 'Ticket not found.');
+}
+
 /** Marks the called ticket as actually being served (starts the service clock). */
 export async function startServing(business, queue, ticketId, { actorId = '' } = {}) {
+  if (!ObjectId.isValid(ticketId)) throw new HttpError(404, 'Ticket not found.');
   const now = new Date();
   const ticket = await tickets().findOneAndUpdate(
     { _id: new ObjectId(ticketId), queueId: queue._id, status: 'called' },
     { $set: { status: 'serving', servingAt: now, updatedAt: now, servedBy: actorId } },
     { returnDocument: 'after' }
   );
-  if (!ticket) throw new HttpError(409, 'That ticket is not waiting to be served.');
+  if (!ticket) await refuseTicket(queue, ticketId, 'That ticket is not waiting to be served.');
   await record(EVENTS.ticketStarted, { businessId: business._id, queueId: queue._id, ticketId: ticket._id, actorId });
   publish(business._id, 'ticket.serving', { ticket: anonymousTicket(ticket) });
   return ticket;
@@ -273,7 +294,7 @@ export async function closeTicket(business, queue, ticketId, status, { actorId =
     { $set: { status, [rule.stamp]: now, updatedAt: now } },
     { returnDocument: 'after' }
   );
-  if (!ticket) throw new HttpError(409, 'That ticket has already been dealt with.');
+  if (!ticket) await refuseTicket(queue, ticketId, 'That ticket has already been dealt with.');
 
   if (String(queue.servingTicketId) === String(ticket._id)) {
     await bumpQueue(queue._id, { $set: { servingTicketId: null } });
@@ -289,6 +310,7 @@ export async function closeTicket(business, queue, ticketId, status, { actorId =
 
 /** Sends a called ticket back to the end of the waiting list. */
 export async function skipToEnd(business, queue, ticketId, { actorId = '' } = {}) {
+  if (!ObjectId.isValid(ticketId)) throw new HttpError(404, 'Ticket not found.');
   const now = new Date();
   const position = await nextPosition(queue._id);
   const ticket = await tickets().findOneAndUpdate(
@@ -296,7 +318,7 @@ export async function skipToEnd(business, queue, ticketId, { actorId = '' } = {}
     { $set: { status: 'waiting', position, calledAt: null, updatedAt: now } },
     { returnDocument: 'after' }
   );
-  if (!ticket) throw new HttpError(409, 'That ticket is no longer in the queue.');
+  if (!ticket) await refuseTicket(queue, ticketId, 'That ticket is no longer in the queue.');
 
   if (String(queue.servingTicketId) === String(ticket._id)) {
     await bumpQueue(queue._id, { $set: { servingTicketId: null } });
@@ -416,6 +438,7 @@ export async function move(business, queue, ticketId, direction, { actorId = '' 
 
 /** Moves a waiting ticket onto a different service. */
 export async function assignService(business, queue, ticketId, serviceId, { actorId = '' } = {}) {
+  if (!ObjectId.isValid(ticketId)) throw new HttpError(404, 'Ticket not found.');
   let service = null;
   if (serviceId) {
     if (!ObjectId.isValid(serviceId)) throw new HttpError(400, 'Unknown service.');
