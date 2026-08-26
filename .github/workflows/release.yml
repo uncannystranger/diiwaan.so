@@ -57,10 +57,17 @@ jobs:
           done
           exit $fail
 
-      # The QR encoder is pure and self-verifying, so it runs anywhere with no
-      # database, no network and no credentials.
+      # These three are pure: no database, no network, no credentials, so they
+      # run anywhere. The suites that need real accounts (tenancy, concurrency)
+      # sign in to Firebase and are run against a live server instead.
       - name: QR round-trips
         run: npm run test:qr
+
+      - name: Both copies of the palette agree
+        run: npm run test:palette
+
+      - name: The worker precaches everything the first paint imports
+        run: npm run test:shell
 
       - name: Both languages are complete
         run: |

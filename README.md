@@ -316,9 +316,17 @@ actions are never applied offline: the server stays authoritative over the queue
 ## Tests
 
 ```bash
-npm run test:api    # 90 checks against real Firebase auth and a real MongoDB
-npm run test:qr     # 33 QR encode/decode round-trips
+npm run test:api          # 90 checks against real Firebase auth and a real MongoDB
+npm run test:tenancy      # 32 cross-tenant access attempts, every one refused
+npm run test:concurrency  # 11 races: simultaneous joins, NEXT presses, double-close
+npm run test:qr           # 33 QR encode/decode round-trips
+npm run test:palette      # the stylesheet and the server agree on the five seeds
+npm run test:shell        # the worker precaches everything the first paint imports
 ```
+
+The last three are pure — no database, no network, no credentials — so they run
+anywhere, including in CI. The first three sign in as real accounts and talk to a
+running server.
 
 The API suite signs in as two separate owners and a staff member and proves the parts that
 matter: tenant isolation both ways, invitation linking and role limits, ticket lifecycle,
