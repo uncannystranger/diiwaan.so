@@ -49,8 +49,8 @@
       ]
     },
     {
-      "//": "The app's modules and stylesheet are only correct as a set, so they are revalidated rather than trusted. no-cache still allows a 304: an unchanged file costs a round trip and no bytes.",
-      "source": "/(.*).(js|css)",
+      "//": "The app's modules and stylesheet are only correct as a set, so they are revalidated rather than trusted. no-cache still allows a 304: an unchanged file costs a round trip and no bytes. (Vercel's own default for static files is max-age=0, must-revalidate, which is equivalent \u2014 this states the intent rather than relying on it.)",
+      "source": "/(.*)\\.(js|css)",
       "headers": [
         {
           "key": "Cache-Control",
@@ -60,7 +60,7 @@
     },
     {
       "//": "Genuinely immutable, and not part of the module graph.",
-      "source": "/(.*).(png|svg|ico|webmanifest|woff2)",
+      "source": "/(.*)\\.(png|svg|ico|webmanifest|woff2)",
       "headers": [
         {
           "key": "Cache-Control",
