@@ -3,19 +3,54 @@
 
    The distinction matters. A plain network-first worker awaits fetch() with no
    deadline, so a stalled edge leaves the page blank indefinitely while a perfect
-   copy sits in the cache unused. Every strategy here is bounded:
+   copy sits in the cache unused. Every strategy here is bounded.
 
-     assets (JS, CSS, icons)  cache first, revalidated in the background — a
-                              repeat visit paints without touching the network
+   ---------------------------------------------------------------------------
+   Why the app's own code is NOT cache-first
+   ---------------------------------------------------------------------------
+   It used to be, and that was a real bug rather than a tuning choice.
+
+   This frontend is a graph of ES modules at unversioned URLs — /js/app.js
+   imports /js/session.js imports /js/views/auth.js — and they are only correct
+   as a set. Serving them cache-first meant that after a deploy the browser got
+   a fresh index.html from the network and then ran the PREVIOUS deploy's
+   modules from the cache, refreshing them quietly in the background so the next
+   load would be right. Two consequences, both of which were reported as
+   symptoms rather than as caching:
+
+     · a fix appeared not to have been applied, because the old code was still
+       the code that ran;
+     · worse, a half-updated set could run together — new app.js against old
+       session.js — which is how a route decision gets made against auth logic
+       that no longer matches it, and how a dashboard appears for a moment
+       before the app corrects itself.
+
+   So anything this project authors — its modules and its stylesheet — is now
+   network-first with a bounded wait, exactly like the document that loads them.
+   Online, you always get one coherent set. Offline, you get the last coherent
+   set, because those responses are still cached; they are simply not preferred
+   while the network can answer.
+
+   Only genuinely immutable things stay cache-first: icons, the manifest, fonts,
+   and branding images, which are addressed by an id that changes when the bytes
+   change.
+
+     the app's code           network first, bounded — one coherent set
+     immutable assets         cache first, revalidated behind the paint
      the page itself          network first with a short deadline, so a deploy
                               is picked up but a slow edge cannot hold the
                               screen blank
-     the API                  never cached; queue state is the server's word
+     the API                  never cached; queue state is the server's word */
 
-   Bump CACHE to retire an old shell. */
-
-const CACHE = 'diiwaan-v4';
+const CACHE = 'diiwaan-v5';
 const NETWORK_DEADLINE_MS = 2500;
+
+/* Code this project authors and ships as a set. Kept as a predicate rather than
+   a list so a new view or helper is covered the day it is added — forgetting to
+   add one here is exactly the kind of omission that puts a stale module back
+   into a fresh page. */
+const isOwnCode = url =>
+  url.pathname.endsWith('.js') || url.pathname.endsWith('.css');
 
 /* What the first paint actually needs, kept in step with the entry screens.
    The console and its views are fetched on demand and cached as they arrive. */
@@ -78,23 +113,26 @@ self.addEventListener('fetch', event => {
 
   const isDocument = request.mode === 'navigate' || url.pathname === '/' || url.pathname.endsWith('.html');
 
-  if (isDocument) {
-    /* The page is tried fresh first so a deploy lands, but only for as long as
-       a person will wait. Past that, the cached shell is shown — it boots the
-       app, which then talks to the API on its own terms. */
+  if (isDocument || isOwnCode(url)) {
+    /* Tried fresh first so a deploy lands, but only for as long as a person
+       will wait. Past that the cached copy is served — it boots the app, which
+       then talks to the API on its own terms. A document with nothing cached
+       falls back to the shell; a module has no such substitute, so it falls
+       through to the network and reports honestly if that fails. */
     event.respondWith((async () => {
       const fresh = await withDeadline(fetch(request), NETWORK_DEADLINE_MS);
       if (fresh && fresh.ok) return save(request, fresh);
-      return (await caches.match(request))
-        || (await caches.match('/index.html'))
-        || fetch(request);
+      const cached = await caches.match(request);
+      if (cached) return cached;
+      return isDocument ? (await caches.match('/index.html')) || fetch(request) : fetch(request);
     })());
     return;
   }
 
-  /* Assets are answered from cache immediately and refreshed behind the paint,
-     so the second visit renders at local speed no matter what the edge is
-     doing. A miss falls through to the network with the same deadline. */
+  /* What is left is immutable: icons, the manifest, branding images addressed
+     by an id that changes when the bytes do. Answered from cache immediately
+     and refreshed behind the paint, so a repeat visit renders at local speed no
+     matter what the edge is doing. A miss falls through to the network. */
   event.respondWith((async () => {
     const hit = await caches.match(request);
     if (hit) {

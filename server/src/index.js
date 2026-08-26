@@ -7,6 +7,7 @@ import rateLimit from 'express-rate-limit';
 import cookieParser from 'cookie-parser';
 import path from 'node:path';
 import { config, assertConfig, ROOT } from './config.js';
+import { googleSignInReady } from './lib/firebase.js';
 import { connect, disconnect } from './db.js';
 import { withUser } from './middleware/auth.js';
 import { errorHandler, notFound } from './lib/errors.js';
@@ -116,7 +117,7 @@ export async function createApp() {
      server verifying the signed token. No server credential is ever included. */
   app.get('/api/config', (req, res) => {
     res.json({
-      googleAuth: config.firebase.googleAuth,
+      googleAuth: googleSignInReady(),
       firebase: config.firebase.projectId && config.firebase.apiKey
         ? {
             projectId: config.firebase.projectId,
@@ -162,9 +163,25 @@ export async function createApp() {
   app.use(express.static(web, {
     index: false,
     maxAge: config.env === 'production' ? '1h' : 0,
-    // In development the browser must never hold on to an old module.
-    setHeaders: res => {
-      if (config.env !== 'production') res.setHeader('Cache-Control', 'no-store');
+    setHeaders: (res, filePath) => {
+      // In development the browser must never hold on to an old module.
+      if (config.env !== 'production') return res.setHeader('Cache-Control', 'no-store');
+
+      /* The worker is the one file that decides how every other file is
+         fetched, so it must never be answered from a stale copy: an hour-old
+         sw.js is an hour of the previous deploy's caching rules, and the update
+         that would have fixed it is the thing being cached. Browsers already
+         bypass their HTTP cache for worker scripts, but intermediaries do not.
+
+         The modules themselves are revalidated rather than trusted for an hour,
+         because they are only correct as a set — the same reason the worker
+         stopped preferring its cached copies of them. `no-cache` still allows a
+         304, so an unchanged file costs a round trip and no bytes. */
+      if (filePath.endsWith('sw.js')) {
+        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+      } else if (filePath.endsWith('.js') || filePath.endsWith('.css')) {
+        res.setHeader('Cache-Control', 'no-cache');
+      }
     }
   }));
   app.get(/^\/(?!api\/).*/, (req, res) => res.sendFile(path.join(web, 'index.html')));

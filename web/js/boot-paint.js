@@ -54,6 +54,21 @@
       window.addEventListener('load', function () {
         navigator.serviceWorker.register('/sw.js').catch(function () {});
       });
+
+      /* A worker that takes over mid-visit has almost certainly just replaced
+         the code this page is running. Reloading once hands the page a set of
+         modules that agree with each other, instead of leaving it on the old
+         ones until the person happens to refresh.
+
+         Guarded twice: only when a worker was already in control (a first-ever
+         install changes nothing that is running), and only once per page, so a
+         worker that keeps re-claiming cannot put the tab in a reload loop. */
+      var reloading = false;
+      navigator.serviceWorker.addEventListener('controllerchange', function () {
+        if (reloading || !navigator.serviceWorker.controller) return;
+        reloading = true;
+        location.reload();
+      });
     }
   } catch (e) { /* the app works without it */ }
 })();
