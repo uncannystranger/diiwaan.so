@@ -1663,12 +1663,27 @@ const PRESS_FEEL = {
   'remove-ticket': 'warn'
 };
 
+/* Dispatch tables are read by own-property, never by plain indexing.
+ *
+ * `actions` and `PRESS_FEEL` are object literals keyed by a data-action
+ * attribute, and an object literal answers for every name on Object.prototype:
+ * actions['constructor'] is a function, so `actions[name]?.()` would have called
+ * it, and PRESS_FEEL['toString'] is truthy, so `|| 'tap'` would have handed a
+ * function to the vibration API.
+ *
+ * Nothing writes those attributes but this application, so this was never
+ * reachable — but the same construct in an authorisation gate and a ticket
+ * status both turned out to be defects, and a dispatcher keyed by a DOM
+ * attribute is the last place worth leaving it. */
+const handlerFor = name => (Object.hasOwn(actions, name) ? actions[name] : undefined);
+const feelFor = name => (Object.hasOwn(PRESS_FEEL, name) ? PRESS_FEEL[name] : 'tap');
+
 root.addEventListener('click', event => {
   const el = event.target.closest('[data-action]');
   if (!el || el.tagName === 'FORM') return;
   event.preventDefault();
-  if (!el.disabled) buzz(PRESS_FEEL[el.dataset.action] || 'tap');
-  actions[el.dataset.action]?.(event, el);
+  if (!el.disabled) buzz(feelFor(el.dataset.action));
+  handlerFor(el.dataset.action)?.(event, el);
 });
 
 /* The press animation is driven from the pointer rather than :active so it
@@ -1687,7 +1702,7 @@ root.addEventListener('submit', event => {
   const form = event.target.closest('form[data-action]');
   if (!form) return;
   event.preventDefault();
-  actions[form.dataset.action]?.(event, form);
+  handlerFor(form.dataset.action)?.(event, form);
 });
 
 root.addEventListener('input', event => {
@@ -1840,9 +1855,9 @@ document.addEventListener('keydown', event => {
     root.querySelector('[data-search]')?.focus();
     return;
   }
-  if (map[key]) {
+  if (Object.hasOwn(map, key)) {
     event.preventDefault();
-    actions[map[key]](event, root);
+    handlerFor(map[key])?.(event, root);
   }
 });
 

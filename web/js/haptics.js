@@ -69,7 +69,10 @@ export function buzz(name = 'tap') {
   const tier = supportLevel();
   if (tier === 'none') return false;
 
-  const pattern = PATTERNS[name] ?? PATTERNS.tap;
+  /* Own-property, not `??`: nullish coalescing does not save you from an
+     inherited value, because Object.prototype.toString is neither null nor
+     undefined — it is a function, which would then be handed to navigator.vibrate. */
+  const pattern = Object.hasOwn(PATTERNS, name) ? PATTERNS[name] : PATTERNS.tap;
   try {
     if (tier === 'simple') {
       // Collapse a pattern to its first pulse, which is the part that reads as
