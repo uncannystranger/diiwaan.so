@@ -1,5 +1,12 @@
 # Every push to main becomes a release.
 #
+# This runs the moment the repository's Actions are able to run. A job that
+# reports "not started" with no steps has not failed a check — GitHub declined
+# to allocate a runner, which is an account-level matter and nothing here can
+# fix. Until then, tag and publish by hand:
+#
+#   git tag -a v1.0.2 -m "Diiwaan v1.0.2" && git push origin v1.0.2
+#
 # The version is derived from the commits themselves rather than from a file
 # somebody has to remember to edit: a commit body saying BREAKING takes the
 # major, one adding something takes the minor, everything else takes a patch.

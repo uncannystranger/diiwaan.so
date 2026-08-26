@@ -10,7 +10,6 @@ No app. No account. Nothing to install.
 <br>
 
 <a href="https://diiwaan-so.vercel.app"><img alt="Live" src="https://img.shields.io/badge/live-diiwaan--so.vercel.app-04121D?style=flat-square&labelColor=0A1E2E&color=E0912F"></a>
-<a href="https://github.com/uncannystranger/diiwaan.so/actions/workflows/release.yml"><img alt="Release" src="https://img.shields.io/github/actions/workflow/status/uncannystranger/diiwaan.so/release.yml?style=flat-square&labelColor=0A1E2E&color=3AA69B&label=checks"></a>
 <a href="https://github.com/uncannystranger/diiwaan.so/releases/latest"><img alt="Release" src="https://img.shields.io/github/v/release/uncannystranger/diiwaan.so?style=flat-square&labelColor=0A1E2E&color=3AA69B"></a>
 <br>
 <img alt="Node" src="https://img.shields.io/badge/Node-20+-04121D?style=flat-square&labelColor=0A1E2E&color=3AA69B">
