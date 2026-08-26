@@ -16,6 +16,21 @@ const recent = new Map(); // businessId -> [{ id, event }] for Last-Event-ID rep
 
 const RETAIN = 50;
 
+/* How many live listeners each business currently has.
+ *
+ * Subscribers are EventEmitter listeners on a per-business channel, which is
+ * the only place that count exists — the browser cannot tell a stream that is
+ * still reading from a retry that failed, so a duplicate subscription is
+ * invisible from the outside. Reported for diagnostics, never in production. */
+export const subscriberCounts = () => {
+  const counts = {};
+  for (const name of bus.eventNames()) {
+    const n = bus.listenerCount(name);
+    if (n) counts[String(name)] = n;
+  }
+  return counts;
+};
+
 export function publish(businessId, type, data = {}) {
   const key = String(businessId);
   const event = { id: ++sequence, type, businessId: key, data, at: new Date().toISOString() };

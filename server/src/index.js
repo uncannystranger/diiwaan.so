@@ -8,6 +8,7 @@ import cookieParser from 'cookie-parser';
 import path from 'node:path';
 import { config, assertConfig, ROOT } from './config.js';
 import { googleSignInReady, googleSignInReason } from './lib/firebase.js';
+import { subscriberCounts } from './services/realtime.js';
 import { connect, disconnect } from './db.js';
 import { withUser } from './middleware/auth.js';
 import { errorHandler, notFound } from './lib/errors.js';
@@ -135,7 +136,15 @@ export async function createApp() {
   });
 
   app.get('/api/health', async (req, res) => {
-    res.json({ ok: true, at: new Date().toISOString() });
+    res.json({
+      ok: true,
+      at: new Date().toISOString(),
+      /* Only outside production. It is a count of live listeners per business —
+         no tenant data — but it is nobody's business but ours, and it exists so
+         a duplicate subscription can be caught from a test rather than guessed
+         at from the browser. */
+      ...(config.env === 'production' ? {} : { subscribers: subscriberCounts() })
+    });
   });
 
   /* The database is opened on the first request that needs it, not at boot.
