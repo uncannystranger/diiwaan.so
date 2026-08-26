@@ -13,7 +13,9 @@
     "test:tenancy": "node server/test/tenancy.test.mjs",
     "test:concurrency": "node server/test/concurrency.test.mjs",
     "test:palette": "node server/test/palette.test.mjs",
-    "test:shell": "node web/test/shell-precache.test.mjs"
+    "test:shell": "node web/test/shell-precache.test.mjs",
+    "test:matrix": "node server/test/matrix.test.mjs",
+    "test:escalation": "node server/test/escalation.test.mjs"
   },
   "engines": {
     "node": ">=20"

@@ -421,7 +421,17 @@ router.get('/:businessId/stream', requireUser, requireBusiness('staff'), (req, r
 
 /* ---------- queue ---------- */
 
+/* One mount, deliberately.
+ *
+ * This router was also mounted at /:businessId/tickets, which gave every queue
+ * operation a second URL — and a misleading one. PATCH .../tickets edited queue
+ * settings, POST .../tickets/status closed the queue, and POST
+ * .../tickets/tickets created a ticket, all working exactly as the /queue paths
+ * did. Authorisation held on both, so nothing was exposed, but it doubled the
+ * live surface, none of it was documented, and nothing called it: the frontend
+ * has only ever used /queue.
+ *
+ * A second way in that nobody uses is a second way in that nobody watches. */
 router.use('/:businessId/queue', queueRoutes);
-router.use('/:businessId/tickets', queueRoutes);
 
 export default router;
