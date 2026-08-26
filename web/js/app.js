@@ -479,9 +479,15 @@ function syncOverlays(source) {
 }
 
 function render() {
-  // Until boot has decided where we are, the honest thing to show is the splash
-  // already in the document — not a guess at the route.
-  if (!booted) return;
+  /* Two gates, and both are needed.
+
+     `booted` says a route has been resolved at least once. `phase` says
+     identity is settled. A render that passes the first but not the second
+     would be drawing a screen chosen from an auth state that is still a guess,
+     which is exactly how a dashboard appears for a moment and is then taken
+     away again. Until both hold, the honest thing to show is the splash already
+     in the document. */
+  if (!booted || session.isInitializing()) return;
 
   const active = document.activeElement;
   const keep = active?.dataset?.keep;
@@ -582,12 +588,43 @@ function scalePreviews() {
 window.addEventListener('resize', scalePreviews);
 
 async function navigate() {
+  /* Nothing may be resolved from an identity that is still being established.
+     Boot calls navigate() itself once it has finished, so an early call here —
+     a hashchange arriving mid-boot, say — is dropped rather than answered with
+     a guess that would have to be corrected a moment later. */
+  if (session.isInitializing()) return;
+
   const next = await resolveRoute();
   // The screen's module is fetched before it is rendered, so render() stays
   // synchronous and never paints a half-loaded view.
   await loadScreen(next.kind);
   resolvedRoute = next;
+  canonicalise(next);
   render();
+}
+
+/* The address bar has to agree with the screen.
+
+   Routing here is a resolution, not a lookup: asking for '#/' while signed in
+   resolves to the queue, and asking for '#/queue' before a business exists
+   resolves to setup. When the URL is left saying something the screen is not,
+   the next thing to read it disagrees with what is on display — the back
+   button, a link to the route you are already on, a reload — and the app
+   appears to bounce between two pages.
+
+   replaceState rather than pushState: this is the same navigation, corrected,
+   not a new one. Adding a history entry would make Back undo the correction and
+   land straight back on the wrong URL. */
+function canonicalise(route) {
+  // Customer routes are real paths carrying a slug; they are already canonical.
+  if (route.kind === 'customer') return;
+
+  const target = `#/${route.kind === 'landing' ? '' : route.kind}`;
+  if (location.hash === target) return;
+  // A bare '/' with no hash is a legitimate spelling of the landing route.
+  if (target === '#/' && (location.hash === '' || location.hash === '#')) return;
+
+  history.replaceState(null, '', `${location.pathname}${location.search}${target}`);
 }
 
 /* Renders are coalesced to one per frame. A hidden tab never gets a frame, so a
@@ -1836,15 +1873,17 @@ document.addEventListener('visibilitychange', () => {
   render();
 });
 
-/* Whatever happens during boot, the app must end up rendering something: a
-   failure here used to be invisible, and with the render gate in place it would
-   leave the splash on screen forever. */
 /* Whatever happens — a failed boot, a slow account load, a network that never
    answers — something is on screen within a few seconds. The splash is a
-   loading state, never a destination. */
+   loading state, never a destination.
+
+   This does not paint over an unresolved auth state; it ends it. abandonBoot()
+   settles the phase to what is actually known, so the render that follows is
+   made from a decided state rather than from a guess that beat the clock. */
 const failsafe = setTimeout(() => {
   if (booted) return;
-  console.warn('[diiwaan] boot overran; rendering without it');
+  console.warn('[diiwaan] boot overran; resolving without it');
+  session.abandonBoot();
   booted = true;
   navigate();
 }, 10_000);
@@ -1861,6 +1900,9 @@ try {
   console.error('Diiwaan could not start cleanly', error);
 } finally {
   clearTimeout(failsafe);
+  // A boot that threw may have left the phase unset; nothing may render until
+  // it is decided, so decide it here rather than leaving the splash up.
+  session.abandonBoot();
   if (!booted) {
     booted = true;
     await navigate();

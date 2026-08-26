@@ -15,7 +15,19 @@ let renewTimer = null;
 const listeners = new Set();
 
 export const state = {
-  ready: false,
+  /* The authentication lifecycle, as one value rather than several booleans.
+     Everything that has to wait for identity waits on this, and nothing is
+     allowed to guess while it reads 'initializing'.
+
+       initializing    boot has not finished; no route decision may be made yet
+       authenticated   a session was restored or created
+       unauthenticated boot finished and there is no session
+       error           the app could not reach its own API at all
+
+     'error' is deliberately distinct from 'unauthenticated': one means nobody
+     is signed in, the other means we do not know and nothing the person types
+     will help. Showing a sign-in form for the second is a lie. */
+  phase: 'initializing',
   session: null,      // { accessToken, expiresAt, user } — memory only
   user: null,         // our own MongoDB profile view
   businesses: [],
@@ -33,6 +45,30 @@ export function onSessionChange(fn) {
 
 export const accessToken = () => state.session?.accessToken || null;
 export const isSignedIn = () => Boolean(state.session);
+
+/** True until boot has resolved identity. No routing decision is valid before this clears. */
+export const isInitializing = () => state.phase === 'initializing';
+
+/**
+ * Declares identity resolved when boot itself never managed to.
+ *
+ * The gate that stops the router guessing would otherwise become a way for the
+ * app to hang: if boot never returns, the phase never leaves 'initializing' and
+ * nothing may render. This is the deliberate end of that wait — not a delay
+ * that hides a race, but a decision that the answer is not coming.
+ *
+ * It settles to whatever is actually known. A session that was restored before
+ * the stall still counts; anything else is an error state, because "we could
+ * not find out" is not the same as "nobody is signed in".
+ */
+export function abandonBoot() {
+  if (state.phase !== 'initializing') return;
+  state.phase = isSignedIn() ? 'authenticated' : 'error';
+  if (state.phase === 'error' && !state.backendError) {
+    state.backendError = t('auth.serviceUnreachable');
+  }
+  emit();
+}
 export const userId = () => state.session?.user?.id || null;
 export const appUrl = () => runtime?.appUrl || location.origin;
 export const googleAuthAvailable = () => Boolean(runtime?.googleAuth) && firebase.isConfigured();
@@ -79,6 +115,7 @@ const sessionFetch = (method, body) => fetch('/api/auth/session', {
 });
 
 function adopt(payload) {
+  state.phase = 'authenticated';
   state.session = {
     accessToken: payload.accessToken,
     expiresAt: Math.floor(Date.now() / 1000) + payload.expiresIn,
@@ -168,7 +205,13 @@ export async function boot() {
      failing it simply means signed out, which is a state the app can render. */
   if (!isSignedIn()) await withDeadline(restore(), 8000, 'timeout').catch(() => null);
 
-  state.ready = true;
+  /* Set exactly once, at the end of boot, and only from what boot actually
+     established. A backend we could not reach is an error, not a signed-out
+     person — the difference decides whether the interface offers a password
+     field or explains that the service is unreachable. */
+  state.phase = isSignedIn() ? 'authenticated'
+    : state.backendError ? 'error'
+      : 'unauthenticated';
   emit();
   return runtime;
 }
@@ -232,6 +275,7 @@ export function signOut() {
   state.user = null;
   state.businesses = [];
   state.needsVerification = false;
+  state.phase = 'unauthenticated';
   emit();
   return sessionFetch('DELETE').catch(() => {});
 }
