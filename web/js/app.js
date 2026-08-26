@@ -980,7 +980,9 @@ const actions = {
     store.owner.analytics = null;
     store.owner.members = [];
     ui.accountOpen = false;
-    localStorage.removeItem('diiwaan:business');
+    /* Everything this device held about the business, not merely which one was
+       last open — the read-through cache carried waiting customers by name. */
+    store.clearOwnerStorage();
 
     const done = session.signOut();     // fire and forget; the cookie clears regardless
     location.hash = '#/';

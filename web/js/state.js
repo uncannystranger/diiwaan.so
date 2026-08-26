@@ -26,6 +26,33 @@ const write = (key, value) => {
   try { localStorage.setItem(key, JSON.stringify(value)); } catch { /* private mode */ }
 };
 
+/* Two different people share this device's storage, and signing out concerns
+   only one of them.
+
+   The owner's keys hold a business the person was signed into: its details, its
+   services, and the queue snapshot — which carries waiting customers by name.
+   Leaving that behind meant an owner could sign out on a shared machine at the
+   desk and leave their customer list readable in localStorage, for every
+   business they had opened, indefinitely. Those keys go.
+
+   The customer's keys are not the owner's to discard. A ticket token is the
+   only proof that the person holding this phone is the one in position four; a
+   remembered name saves them typing it again; the per-queue paint stops their
+   next scan flashing the wrong brand. None of it belongs to whoever was signed
+   in at the desk, and clearing it would eject real customers from real queues.
+
+   Matching is by prefix rather than by a remembered list, so a key written
+   somewhere this function has never heard of is still cleared. */
+const OWNER_KEY = /^diiwaan:(business$|cache:(?!public:)|paint:owner$)/;
+
+export function clearOwnerStorage() {
+  try {
+    Object.keys(localStorage)
+      .filter(key => OWNER_KEY.test(key))
+      .forEach(key => localStorage.removeItem(key));
+  } catch { /* private mode: nothing was persisted to begin with */ }
+}
+
 export const owner = {
   loading: true,
   error: null,
