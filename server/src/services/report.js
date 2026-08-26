@@ -11,9 +11,10 @@ import PDFDocument from 'pdfkit';
 import { ObjectId } from 'mongodb';
 import { col, collections } from '../db.js';
 import { config } from '../config.js';
+import { PRINT } from '../lib/palette.js';
 import * as analytics from './analytics.js';
 
-const INK = '#011627';
+const INK = PRINT.ink;
 const MUTED = '#3B5568';
 const FAINT = '#64798A';
 const HAIRLINE = '#D8E2E7';
@@ -225,7 +226,7 @@ function hourlyChart(doc, byHour) {
     doc.font('Helvetica').fontSize(10).fillColor(INK)
       .text(`${String(row._id).padStart(2, '0')}:00`, left, y, { width: 70, lineBreak: false });
     doc.roundedRect(barLeft, y + 2, Math.max(3, (row.count / busiest) * barMax), 9, 2)
-      .fillColor('#FF9F1C').fill();
+      .fillColor(PRINT.accent).fill();
     doc.fillColor(MUTED).font('Helvetica').fontSize(9)
       .text(String(row.count), barLeft + barMax + 8, y, { width: 30, align: 'right', lineBreak: false });
     doc.y = y + 18;

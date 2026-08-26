@@ -1,8 +1,10 @@
 /* Tenant defaults.
 
-   These are the Diiwaan palette tokens: #FF9F1C primary action, #2EC4B6 emphasis,
-   #011627 ink, #FDFFFC canvas. A business tints those tokens; it never replaces
-   the design system. */
+   The colours come from lib/palette.js, which is the server's single copy of
+   the house palette. A business tints those tokens; it never replaces the
+   design system. */
+
+import { HOUSE_PALETTE, PRINT } from './palette.js';
 
 /* A brand is five colours with defined jobs, plus how they are laid down.
    primary   — the action colour
@@ -12,11 +14,7 @@
    tint      — the soft highlight used for washes and badges */
 export const DEFAULT_BRANDING = {
   preset: 'diiwaan',
-  primary: '#FF9F1C',
-  emphasis: '#011627',
-  accent: '#2EC4B6',
-  base: '#FDFFFC',
-  tint: '#FFE6C2',
+  ...HOUSE_PALETTE,
   surface: 'aurora',      // aurora | gradient | calm | bold
   theme: 'system',        // what customers see: system | light | dark
   typography: 'diiwaan',  // diiwaan | serif-forward | plain
@@ -41,8 +39,8 @@ export const DEFAULT_CUSTOMER_EXPERIENCE = {
 
 export const DEFAULT_QR = {
   shape: 'square',        // square | rounded | dot
-  foreground: '#011627',
-  background: '#FDFFFC',
+  foreground: PRINT.ink,
+  background: PRINT.paper,
   eyeColor: '',
   eyeStyle: 'square',
   logoOnCode: true,

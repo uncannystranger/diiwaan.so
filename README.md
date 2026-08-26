@@ -13,7 +13,7 @@ No app. No account. Nothing to install.
 <a href="https://github.com/uncannystranger/diiwaan.so/releases/latest"><img alt="Release" src="https://img.shields.io/github/v/release/uncannystranger/diiwaan.so?style=flat-square&labelColor=0A1E2E&color=3AA69B"></a>
 <br>
 <img alt="Node" src="https://img.shields.io/badge/Node-20+-04121D?style=flat-square&labelColor=0A1E2E&color=3AA69B">
-<img alt="Express" src="https://img.shields.io/badge/Express-5-04121D?style=flat-square&labelColor=0A1E2E&color=3AA69B">
+<img alt="Express" src="https://img.shields.io/badge/Express-4-04121D?style=flat-square&labelColor=0A1E2E&color=3AA69B">
 <img alt="MongoDB" src="https://img.shields.io/badge/MongoDB-driver-04121D?style=flat-square&labelColor=0A1E2E&color=3AA69B">
 <img alt="Firebase Auth" src="https://img.shields.io/badge/Firebase-Authentication-04121D?style=flat-square&labelColor=0A1E2E&color=E0912F">
 <img alt="Zero secrets" src="https://img.shields.io/badge/service%20account-none%20required-04121D?style=flat-square&labelColor=0A1E2E&color=3AA69B">
