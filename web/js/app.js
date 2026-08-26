@@ -953,11 +953,19 @@ const actions = {
   'dismiss-verify'() { ui.verifyDismissed = true; render(); },
   /* The page is about to be replaced by Google's, so the button is put into its
      going state and left there — there is no "after" in this tab to reset it. */
+  /* The page is about to be replaced by Google's, so the button goes into its
+     going state and stays there — there is no "after" in this tab to reset it.
+     The guard is what stops a second press starting a second authorisation and
+     discarding the first. */
   async 'google-auth'() {
-    ui.googleBusy = true; render();
+    if (ui.googleBusy) return;
+    ui.googleBusy = true;
+    ui.auth.errors = {};
+    render();
     try {
       await session.startGoogle();
     } catch (error) {
+      // We never left, so the button has to come back.
       ui.googleBusy = false;
       ui.auth.errors = { form: error.message };
       render();

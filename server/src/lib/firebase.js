@@ -74,7 +74,7 @@ export async function verifyFirebaseToken(token) {
    not offer it at all. */
 
 const PROBE_TTL_MS = 60 * 60 * 1000;
-let googleProbe = { ready: false, checkedAt: 0, running: false };
+let googleProbe = { ready: false, reason: 'checking', checkedAt: 0, running: false };
 
 /** Where Google is asked to return to. Must match what the browser sends. */
 export const googleRedirectUri = () => `${config.appUrl.replace(/\/+$/, '')}/`;
@@ -97,16 +97,19 @@ async function probeGoogle() {
       }
     );
     const { authUri } = await created.json();
-    if (!authUri) return false;
+    if (!authUri) return { ready: false, reason: 'provider_disabled' };
 
     /* Following the URL is the only honest test: createAuthUri succeeds
        whatever the redirect URI is, and Google only objects at the consent
        step. A rejection renders as a page naming the reason. */
     const consent = await fetch(authUri, { redirect: 'follow', signal: AbortSignal.timeout(8000) });
     const page = await consent.text();
-    return !/redirect_uri_mismatch/i.test(page);
+    return /redirect_uri_mismatch/i.test(page)
+      ? { ready: false, reason: 'redirect_uri_unregistered' }
+      : { ready: true, reason: 'ok' };
   } catch {
-    return false; // unreachable or slow: offer nothing rather than a dead button
+    // Unreachable or slow: offer nothing rather than a dead button.
+    return { ready: false, reason: 'probe_failed' };
   }
 }
 
@@ -121,8 +124,27 @@ export function googleSignInReady() {
     // Deliberately not awaited: /api/config is what the browser waits on before
     // it can render anything, and it answers from memory for that reason.
     probeGoogle()
-      .then(ready => { googleProbe = { ready, checkedAt: Date.now(), running: false }; })
-      .catch(() => { googleProbe = { ready: false, checkedAt: Date.now(), running: false }; });
+      .then(result => { googleProbe = { ...result, checkedAt: Date.now(), running: false }; })
+      .catch(() => { googleProbe = { ready: false, reason: 'probe_failed', checkedAt: Date.now(), running: false }; });
   }
   return googleProbe.ready;
 }
+
+/* Why the button is not being offered.
+ *
+ * Hiding a control that cannot work is right for the person trying to sign in —
+ * a dead button is worse than no button. It is wrong for whoever has to fix it,
+ * who otherwise sees nothing at all and has no way to tell "switched off" from
+ * "misconfigured". The reason is therefore reported, and the interface shows it
+ * only in development, where the person reading the screen is the one who can
+ * act on it.
+ *
+ *   provider_disabled          Google is not enabled in the Firebase console
+ *   redirect_uri_unregistered  enabled, but this origin is not an authorised
+ *                              redirect URI on the OAuth client the console made
+ *   probe_failed               Google could not be reached to find out
+ */
+export const googleSignInReason = () =>
+  (String(process.env.FIREBASE_GOOGLE_AUTH || '').toLowerCase() === 'false'
+    ? 'turned_off'
+    : googleProbe.reason);

@@ -73,6 +73,11 @@ export const userId = () => state.session?.user?.id || null;
 export const appUrl = () => runtime?.appUrl || location.origin;
 export const googleAuthAvailable = () => Boolean(runtime?.googleAuth) && firebase.isConfigured();
 
+/* Present only outside production, and only when the button is being withheld.
+   It is a note to whoever can fix the configuration, not a message to anyone
+   signing in. */
+export const googleAuthReason = () => (runtime?.googleAuthReason || '');
+
 /** Set when a provider sent us back with a refusal instead of a session. */
 export let oauthError = '';
 
@@ -198,7 +203,10 @@ export async function boot() {
       // A cancelled consent screen is a decision, not a failure worth reporting.
       if (!error?.cancelled) oauthError = t('auth.errGoogleFailed');
     }
-    history.replaceState(null, '', `${location.pathname}#/${isSignedIn() ? 'queue' : 'signin'}`);
+    const intended = sessionStorage.getItem('diiwaan:after-google');
+    sessionStorage.removeItem('diiwaan:after-google');
+    const back = isSignedIn() ? (intended || 'queue') : 'signin';
+    history.replaceState(null, '', `${location.pathname}#/${back}`);
   }
 
   /* A session restore that stalls must not hold the whole interface hostage:
@@ -245,6 +253,14 @@ export async function signUp({ email, password, name }) {
 export async function startGoogle() {
   requireProvider();
   try {
+    /* Where to come back to. The round trip through Google replaces this page,
+       so the intended destination cannot be held in memory across it — and
+       landing everyone on the queue would throw away an invitation link or a
+       half-finished setup. Session-scoped, because it belongs to this one trip. */
+    const from = location.hash.replace(/^#\/?/, '');
+    if (from && !['signin', 'signup'].includes(from)) {
+      sessionStorage.setItem('diiwaan:after-google', from);
+    }
     location.assign(await firebase.startGoogle());
   } catch (error) {
     throw firebaseFailure(error);

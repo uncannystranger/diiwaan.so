@@ -3,7 +3,7 @@
 
 import { esc, wordmark, themeButton, languageButton, icon, madeBy, diiwaanMark } from '../ui.js';
 import { t } from '../i18n.js';
-import { googleAuthAvailable, oauthError, state as sessionState } from '../session.js';
+import { googleAuthAvailable, googleAuthReason, oauthError, state as sessionState } from '../session.js';
 
 /* When the API itself is unreachable, no form on this page can succeed. Saying
    so above the form is more useful than letting each attempt fail with a
@@ -31,13 +31,37 @@ const googleMark = (size = 18) => `
    queue for the first time is choosing how to sign in, not being sold a
    provider. It only appears when Google is actually switched on. */
 function googleButton(ui) {
-  if (!googleAuthAvailable()) return '';
+  if (!googleAuthAvailable()) return configNote();
+
+  /* Disabled while it is working as well as while the form is: this navigates
+     away, so a second press would start a second authorisation and discard the
+     first. aria-busy tells a screen reader the same thing the spinner tells
+     everyone else. */
+  const working = Boolean(ui?.googleBusy);
   return `
     <div class="or-rule"><span>${t('auth.orContinue')}</span></div>
-    <button type="button" class="btn btn--google" data-action="google-auth" ${ui?.busy ? 'disabled aria-busy="true"' : ''}>
-      ${googleMark(19)}<span>${ui?.googleBusy ? t('auth.googleGoing') : t('auth.google')}</span>
+    <button type="button" class="btn btn--google" data-action="google-auth"
+            ${working || ui?.busy ? 'disabled' : ''} ${working ? 'aria-busy="true"' : ''}>
+      ${working ? '<span class="spinner"></span>' : googleMark(19)}
+      <span>${working ? t('auth.googleGoing') : t('auth.google')}</span>
     </button>
     <p class="hint center">${t('auth.googleHint')}</p>`;
+}
+
+/* Why the button is absent — shown only where the server chose to say, which is
+   never in production. A person signing in should not read configuration notes;
+   a developer staring at a missing button should not have to guess. */
+function configNote() {
+  const reason = googleAuthReason();
+  if (!reason || reason === 'ok' || reason === 'turned_off') return '';
+  const words = {
+    provider_disabled: t('auth.googleOffProvider'),
+    redirect_uri_unregistered: t('auth.googleOffRedirect'),
+    probe_failed: t('auth.googleOffUnknown'),
+    checking: t('auth.googleChecking')
+  };
+  return `
+    <p class="hint center" style="opacity:.75">${esc(words[reason] || reason)}</p>`;
 }
 
 function shell(inner) {

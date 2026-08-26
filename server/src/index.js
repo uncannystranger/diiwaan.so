@@ -7,7 +7,7 @@ import rateLimit from 'express-rate-limit';
 import cookieParser from 'cookie-parser';
 import path from 'node:path';
 import { config, assertConfig, ROOT } from './config.js';
-import { googleSignInReady } from './lib/firebase.js';
+import { googleSignInReady, googleSignInReason } from './lib/firebase.js';
 import { connect, disconnect } from './db.js';
 import { withUser } from './middleware/auth.js';
 import { errorHandler, notFound } from './lib/errors.js';
@@ -118,6 +118,9 @@ export async function createApp() {
   app.get('/api/config', (req, res) => {
     res.json({
       googleAuth: googleSignInReady(),
+      /* Only in development. In production this is nobody's business but ours,
+         and a customer signing in should never read a configuration note. */
+      ...(config.env === 'production' ? {} : { googleAuthReason: googleSignInReason() }),
       firebase: config.firebase.projectId && config.firebase.apiKey
         ? {
             projectId: config.firebase.projectId,
