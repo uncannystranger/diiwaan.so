@@ -167,7 +167,12 @@ export async function createApp() {
       // In development the browser must never hold on to an old module.
       if (config.env !== 'production') return res.setHeader('Cache-Control', 'no-store');
 
-      /* The worker is the one file that decides how every other file is
+      /* These matter wherever this server does serve the frontend — a single
+         process, a container, a laptop. On Vercel the static files are answered
+         by the edge and never reach Express, so the same rules are declared in
+         vercel.json; the two are kept deliberately identical.
+
+         The worker is the one file that decides how every other file is
          fetched, so it must never be answered from a stale copy: an hour-old
          sw.js is an hour of the previous deploy's caching rules, and the update
          that would have fixed it is the thing being cached. Browsers already
