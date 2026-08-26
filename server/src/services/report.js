@@ -23,14 +23,22 @@ const PAGE = { size: 'A4', margins: { top: 54, bottom: 64, left: 54, right: 54 }
 const money = value => (value === null || value === undefined ? '—' : String(value));
 const minutes = value => (value ? `${value} min` : '—');
 
-const PERIODS = {
-  today: { label: 'Today', days: 0 },
-  week: { label: 'Last 7 days', days: 7 },
-  month: { label: 'Last 30 days', days: 30 }
-};
+/* A Map because the key is `?period=` straight off the query string.
+ *
+ * As an object literal, `PERIODS[key] || PERIODS.today` did the right thing for
+ * an unknown word — 'nonsense' fell back to Today — and the wrong thing for an
+ * inherited one: PERIODS['constructor'] is a function, which is truthy, so the
+ * fallback never ran and the report was drawn with an undefined label. The same
+ * shape as the ticket-status bug, in the one place here the key is a URL
+ * parameter. */
+const PERIODS = new Map([
+  ['today', { label: 'Today', days: 0 }],
+  ['week', { label: 'Last 7 days', days: 7 }],
+  ['month', { label: 'Last 30 days', days: 30 }]
+]);
 
 function periodRange(key) {
-  const period = PERIODS[key] || PERIODS.today;
+  const period = PERIODS.get(key) || PERIODS.get('today');
   const since = period.days
     ? new Date(Date.now() - period.days * 24 * 3600 * 1000)
     : new Date(new Date().setHours(0, 0, 0, 0));
@@ -321,10 +329,14 @@ export async function streamReport(business, { period = 'today', generatedBy = '
   const timeOf = value => (value
     ? new Date(value).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
     : '—');
-  const STATUS_WORDS = {
-    waiting: 'Waiting', called: 'Called', serving: 'Being served', completed: 'Served',
-    skipped: 'Skipped', cancelled: 'Left', no_show: 'No-show'
-  };
+  /* Also a Map. These keys come from stored ticket statuses, which the schema
+     constrains, so nothing untoward can reach it — but a lookup table read by
+     `|| fallback` is the pattern that produced two defects in this codebase,
+     and it costs nothing to close the class rather than the instances. */
+  const STATUS_WORDS = new Map([
+    ['waiting', 'Waiting'], ['called', 'Called'], ['serving', 'Being served'],
+    ['completed', 'Served'], ['skipped', 'Skipped'], ['cancelled', 'Left'], ['no_show', 'No-show']
+  ]);
   table(doc, {
     columns: [
       { header: 'Ticket', width: 0.11 },
@@ -342,7 +354,7 @@ export async function streamReport(business, { period = 'today', generatedBy = '
       timeOf(ticket.createdAt),
       timeOf(ticket.calledAt),
       ticket.calledAt ? `${Math.max(0, Math.round((ticket.calledAt - ticket.createdAt) / 60000))}m` : '—',
-      STATUS_WORDS[ticket.status] || ticket.status
+      STATUS_WORDS.get(ticket.status) || ticket.status
     ]),
     emptyText: 'No customers joined in this period.'
   });

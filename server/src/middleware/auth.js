@@ -133,7 +133,34 @@ export async function withProfile(req, res, next) {
   }
 }
 
-const ROLE_RANK = { staff: 1, manager: 2, owner: 3 };
+/* Roles are ranked so a route can ask for "manager or better". The ranking is a
+   Map, and an unrecognised role is refused rather than compared.
+ *
+ * It used to be an object literal compared directly:
+ *
+ *     if (ROLE_RANK[role] < ROLE_RANK[minimumRole]) throw ...
+ *
+ * which fails open. Any role the table does not know — a typo, a null, a value
+ * from a document written before the schema had an enum, or an inherited key
+ * like 'constructor' — makes the left side undefined or a function, the
+ * comparison NaN, the condition false, and the request is allowed through. An
+ * owner-only route would admit it.
+ *
+ * Nothing reaches that today: the member schema constrains role to an enum, the
+ * invite schema allows only manager and staff, and the member patch allowlists
+ * the same two. So this was latent rather than exploitable. But an authorisation
+ * gate whose failure mode is "allow" is the wrong shape no matter how well it is
+ * guarded upstream — the guard is one careless migration away from being the
+ * only thing standing there. */
+const ROLE_RANK = new Map([['staff', 1], ['manager', 2], ['owner', 3]]);
+
+/** True when `role` is a rank we know and it meets `minimumRole`. Unknown is never enough. */
+function roleMeets(role, minimumRole) {
+  const held = ROLE_RANK.get(role);
+  const needed = ROLE_RANK.get(minimumRole);
+  if (held === undefined || needed === undefined) return false;
+  return held >= needed;
+}
 
 /**
  * Resolves :businessId (or :businessSlug) to a business the caller belongs to.
@@ -166,7 +193,7 @@ export function requireBusiness(minimumRole = 'staff') {
       // Ownership is the fallback for the account that created the business.
       const role = membership?.role || (ids.includes(business.ownerId) ? 'owner' : null);
       if (!role) throw new HttpError(404, 'Business not found.');
-      if (ROLE_RANK[role] < ROLE_RANK[minimumRole]) {
+      if (!roleMeets(role, minimumRole)) {
         throw new HttpError(403, 'Your role does not allow that.');
       }
 

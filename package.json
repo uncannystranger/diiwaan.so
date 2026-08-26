@@ -16,7 +16,9 @@
     "test:shell": "node web/test/shell-precache.test.mjs",
     "test:matrix": "node server/test/matrix.test.mjs",
     "test:escalation": "node server/test/escalation.test.mjs",
-    "test:transitions": "node server/test/transitions.test.mjs"
+    "test:transitions": "node server/test/transitions.test.mjs",
+    "test:role-gate": "node server/test/role-gate.test.mjs",
+    "test:status-input": "node server/test/status-input.test.mjs"
   },
   "engines": {
     "node": ">=20"
