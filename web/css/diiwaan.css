@@ -2755,3 +2755,33 @@ html.retint, html.retint *, html.retint *::before, html.retint *::after {
   .verify-strip { width: calc(100% - 20px); border-radius: 18px; }
   .verify-strip__actions { width: 100%; justify-content: flex-start; }
 }
+
+/* ---------- touch targets ----------
+
+   The compact controls — segmented pickers, chips, the live switch — are sized
+   for a pointer, and at 36-38px they were below the 44px this project claims
+   and a finger comfortably wants. Raising them everywhere would coarsen a
+   desktop that is being driven by a mouse, so the floor is applied only where
+   the input actually is a finger.
+
+   pointer: coarse is the primary signal; a narrow viewport catches the phones
+   that report otherwise. Padding is left alone and the height is set as a
+   minimum, so nothing is re-laid-out — the box simply stops being smaller than
+   the thing pressing it. */
+@media (pointer: coarse), (max-width: 640px) {
+  .chip,
+  .seg button,
+  .seg a,
+  .prefix-pick button,
+  [data-action="toggle-live"],
+  [data-action="toggle-phone"],
+  [data-action="toggle-service"],
+  [data-action="toggle-ahead"],
+  [data-action="toggle-estimate"],
+  [data-action="toggle-progress"] {
+    min-height: 44px;
+  }
+
+  /* An icon button is square, so its width has to come up with its height. */
+  .icon-btn { min-width: 44px; min-height: 44px; }
+}
