@@ -5,12 +5,15 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Diiwaan — a queue your customers can join by scanning</title>
 <meta name="description" content="Create your account, brand your queue, print one QR code. Customers join with no app and no account.">
-<meta name="theme-color" content="#FDFFFC">
+<!-- The starting value only: theme.js replaces this with the resolved
+     --canvas token as soon as the stylesheet lands, so a branded queue tints
+     the browser chrome too. This literal is the house --p-base. -->
+<meta name="theme-color" content="#FBFCFA">
 <link rel="manifest" href="/manifest.webmanifest">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Poppins:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=Lora:ital,wght@0,400;0,500;0,600;1,400;1,500&display=swap" rel="stylesheet">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='7' fill='%23011627'/%3E%3Crect x='5' y='7' width='9' height='2.4' rx='1.2' fill='%23FDFFFC' opacity='.75'/%3E%3Crect x='5' y='10.8' width='6.5' height='2.4' rx='1.2' fill='%23FDFFFC' opacity='.5'/%3E%3Crect x='5' y='14.6' width='4' height='2.4' rx='1.2' fill='%23FDFFFC' opacity='.35'/%3E%3Ccircle cx='17.6' cy='12' r='2.9' fill='%23FF9F1C'/%3E%3C/svg%3E">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='7' fill='%2304121D'/%3E%3Crect x='5' y='7' width='9' height='2.4' rx='1.2' fill='%23FBFCFA' opacity='.75'/%3E%3Crect x='5' y='10.8' width='6.5' height='2.4' rx='1.2' fill='%23FBFCFA' opacity='.5'/%3E%3Crect x='5' y='14.6' width='4' height='2.4' rx='1.2' fill='%23FBFCFA' opacity='.35'/%3E%3Ccircle cx='17.6' cy='12' r='2.9' fill='%23E0912F'/%3E%3C/svg%3E">
 <style>
 /* The splash cannot depend on the stylesheet: on a slow network that file is
    itself still in flight, and an unstyled boot screen is a coloured void with a

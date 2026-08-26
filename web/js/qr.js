@@ -3,6 +3,8 @@
    renderer takes options and the encoder needs the higher ECC levels that let a
    logo cover part of the symbol. */
 
+import { brand, resolveColor } from './tokens.js';
+
 const TOTAL_CODEWORDS = [26, 44, 70, 100, 134, 172, 196, 242, 292, 346];
 
 // [ecCodewordsPerBlock, [[blockCount, dataCodewordsPerBlock], ...]] by version
@@ -385,8 +387,10 @@ export function qrSvg(text, options = {}) {
   const {
     size = 240,
     quiet = 4,
-    dark = '#011627',
-    light = '#FDFFFC',
+    // Resolved, because these are written into an SVG that is downloaded and
+    // printed — a color-mix() expression would leave the file uncoloured.
+    dark = resolveColor(brand().emphasis, '#04121D'),
+    light = resolveColor(brand().base, '#FBFCFA'),
     eye,
     shape = 'square',
     logo = '',
@@ -435,7 +439,7 @@ export function qrSvg(text, options = {}) {
     const r = row + quiet, c = col + quiet;
     body += `
       <rect x="${c}" y="${r}" width="7" height="7" rx="${radius}" fill="${eyeColor}"/>
-      <rect x="${c + 1}" y="${r + 1}" width="5" height="5" rx="${Math.max(0, radius - 0.6)}" fill="${light === 'transparent' ? '#FDFFFC' : light}"/>
+      <rect x="${c + 1}" y="${r + 1}" width="5" height="5" rx="${Math.max(0, radius - 0.6)}" fill="${light === 'transparent' ? brand().base : light}"/>
       <rect x="${c + 2}" y="${r + 2}" width="3" height="3" rx="${Math.max(0, radius - 1.1)}" fill="${eyeColor}"/>`;
   }
 
@@ -443,7 +447,7 @@ export function qrSvg(text, options = {}) {
     const pad = 0.6;
     const box = hole - pad * 2;
     body += `
-      <rect x="${holeFrom + quiet + pad / 2}" y="${holeFrom + quiet + pad / 2}" width="${hole - pad}" height="${hole - pad}" rx="${box * 0.22}" fill="${light === 'transparent' ? '#FDFFFC' : light}"/>
+      <rect x="${holeFrom + quiet + pad / 2}" y="${holeFrom + quiet + pad / 2}" width="${hole - pad}" height="${hole - pad}" rx="${box * 0.22}" fill="${light === 'transparent' ? brand().base : light}"/>
       <image href="${logo}" x="${holeFrom + quiet + pad}" y="${holeFrom + quiet + pad}" width="${box}" height="${box}" preserveAspectRatio="xMidYMid meet" clip-path="inset(0 round ${box * 0.18})"/>`;
   }
 

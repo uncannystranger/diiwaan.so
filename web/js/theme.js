@@ -1,5 +1,7 @@
 /* Theme: light, dark, or follow the device. Persisted per device. */
 
+import { ground } from './tokens.js';
+
 const KEY = 'diiwaan:theme';
 const media = window.matchMedia('(prefers-color-scheme: dark)');
 
@@ -32,8 +34,16 @@ function paint() {
   const theme = resolved();
   retint(() => { document.documentElement.dataset.theme = theme; });
 
+  /* The browser's own chrome should be the colour of the page it frames, in
+     whatever palette this business uses — read, never guessed.
+
+     Read synchronously: retint() has already written the attribute and forced a
+     layout flush, so the computed value is correct by now. An earlier version
+     deferred this to requestAnimationFrame, which never fires in a hidden tab —
+     the same trap this app already races a timer to avoid when rendering — so
+     switching theme in a background tab left the chrome on the old colour. */
   const meta = document.querySelector('meta[name="theme-color"]');
-  if (meta) meta.content = theme === 'dark' ? '#011627' : '#FDFFFC';
+  if (meta) meta.content = ground();
 
   const glyph = preference === 'system' ? 'auto' : preference === 'dark' ? 'moon' : 'sun';
   document.querySelectorAll('[data-action="cycle-theme"]').forEach(button => {

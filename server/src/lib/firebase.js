@@ -54,3 +54,75 @@ export async function verifyFirebaseToken(token) {
     return null;
   }
 }
+
+/* ---------- Google sign-in readiness ----------
+
+   Enabling Google in the Firebase console is only half the setup. This app
+   sends people to Google directly over REST rather than through the Web SDK,
+   so its own origin has to be listed as an authorised redirect URI on the
+   OAuth client the console created. Until it is, Google answers the consent
+   request with redirect_uri_mismatch.
+
+   The browser cannot discover that on its own, and asking a person to keep a
+   boolean in step with a setting in a different console is how a button ends
+   up either missing or dead. So the server finds out for itself: it walks the
+   first step of the real flow once and remembers the answer. Register the
+   redirect URI and the button appears by itself within the hour; nothing to
+   redeploy, nothing to toggle.
+
+   FIREBASE_GOOGLE_AUTH=false still forces it off, for anyone who would rather
+   not offer it at all. */
+
+const PROBE_TTL_MS = 60 * 60 * 1000;
+let googleProbe = { ready: false, checkedAt: 0, running: false };
+
+/** Where Google is asked to return to. Must match what the browser sends. */
+export const googleRedirectUri = () => `${config.appUrl.replace(/\/+$/, '')}/`;
+
+async function probeGoogle() {
+  const key = config.firebase.apiKey;
+  if (!key) return false;
+  try {
+    const created = await fetch(
+      `https://identitytoolkit.googleapis.com/v1/accounts:createAuthUri?key=${key}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          providerId: 'google.com',
+          continueUri: googleRedirectUri(),
+          authFlowType: 'CODE_FLOW'
+        }),
+        signal: AbortSignal.timeout(6000)
+      }
+    );
+    const { authUri } = await created.json();
+    if (!authUri) return false;
+
+    /* Following the URL is the only honest test: createAuthUri succeeds
+       whatever the redirect URI is, and Google only objects at the consent
+       step. A rejection renders as a page naming the reason. */
+    const consent = await fetch(authUri, { redirect: 'follow', signal: AbortSignal.timeout(8000) });
+    const page = await consent.text();
+    return !/redirect_uri_mismatch/i.test(page);
+  } catch {
+    return false; // unreachable or slow: offer nothing rather than a dead button
+  }
+}
+
+/** Cheap and synchronous. Refreshes itself in the background when stale. */
+export function googleSignInReady() {
+  if (String(process.env.FIREBASE_GOOGLE_AUTH || '').toLowerCase() === 'false') return false;
+  if (!config.firebase.apiKey) return false;
+
+  const stale = Date.now() - googleProbe.checkedAt > PROBE_TTL_MS;
+  if (stale && !googleProbe.running) {
+    googleProbe.running = true;
+    // Deliberately not awaited: /api/config is what the browser waits on before
+    // it can render anything, and it answers from memory for that reason.
+    probeGoogle()
+      .then(ready => { googleProbe = { ready, checkedAt: Date.now(), running: false }; })
+      .catch(() => { googleProbe = { ready: false, checkedAt: Date.now(), running: false }; });
+  }
+  return googleProbe.ready;
+}
