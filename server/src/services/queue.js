@@ -275,16 +275,28 @@ export async function startServing(business, queue, ticketId, { actorId = '' } =
   return ticket;
 }
 
-const TERMINAL = {
-  completed: { event: EVENTS.ticketCompleted, stamp: 'completedAt' },
-  skipped: { event: EVENTS.ticketSkipped, stamp: 'completedAt' },
-  no_show: { event: EVENTS.ticketNoShow, stamp: 'completedAt' },
-  cancelled: { event: EVENTS.ticketRemoved, stamp: 'completedAt' }
-};
+/* A Map, not an object literal, because the key comes from the request body.
+ *
+ * `TERMINAL[status]` looked safe behind an `if (!rule)` guard, and was not: an
+ * object literal inherits from Object.prototype, so '__proto__', 'constructor',
+ * 'toString', 'hasOwnProperty' and 'valueOf' all returned something truthy.
+ * The guard passed, `rule.stamp` was undefined, and the update went to MongoDB
+ * as { status: '__proto__', undefined: <date> } — which the collection's schema
+ * validator rightly refused, turning a bad request into a 500.
+ *
+ * Five words in a request body could crash the endpoint while an ordinary
+ * unknown string was correctly refused with a 400. A Map has no inherited keys,
+ * so the lookup can only ever answer with something that was put in it. */
+const TERMINAL = new Map([
+  ['completed', { event: EVENTS.ticketCompleted, stamp: 'completedAt' }],
+  ['skipped', { event: EVENTS.ticketSkipped, stamp: 'completedAt' }],
+  ['no_show', { event: EVENTS.ticketNoShow, stamp: 'completedAt' }],
+  ['cancelled', { event: EVENTS.ticketRemoved, stamp: 'completedAt' }]
+]);
 
 /** completed | skipped | no_show | cancelled */
 export async function closeTicket(business, queue, ticketId, status, { actorId = '' } = {}) {
-  const rule = TERMINAL[status];
+  const rule = TERMINAL.get(status);
   if (!rule) throw new HttpError(400, 'Unknown ticket status.');
   if (!ObjectId.isValid(ticketId)) throw new HttpError(404, 'Ticket not found.');
 

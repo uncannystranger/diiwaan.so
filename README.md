@@ -319,6 +319,7 @@ actions are never applied offline: the server stays authoritative over the queue
 npm run test:api          # 90 checks against real Firebase auth and a real MongoDB
 npm run test:matrix       # 95 checks: every resource x every caller x every id shape
 npm run test:escalation   # 28 checks: self-promotion, mass assignment, operator injection
+npm run test:transitions  # 32 checks: the ticket state machine, and every impossible move
 npm run test:tenancy      # 32 cross-tenant access attempts, every one refused
 npm run test:concurrency  # 11 races: simultaneous joins, NEXT presses, double-close
 npm run test:qr           # 33 QR encode/decode round-trips

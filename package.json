@@ -15,7 +15,8 @@
     "test:palette": "node server/test/palette.test.mjs",
     "test:shell": "node web/test/shell-precache.test.mjs",
     "test:matrix": "node server/test/matrix.test.mjs",
-    "test:escalation": "node server/test/escalation.test.mjs"
+    "test:escalation": "node server/test/escalation.test.mjs",
+    "test:transitions": "node server/test/transitions.test.mjs"
   },
   "engines": {
     "node": ">=20"

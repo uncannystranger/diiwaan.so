@@ -53,7 +53,10 @@ export function t(key, vars) {
   if (value === undefined) return key;
   if (typeof value === 'function') return value(vars || {});
   if (!vars) return value;
-  return value.replace(/\{(\w+)\}/g, (match, name) => (name in vars ? String(vars[name]) : match));
+  /* Object.hasOwn, not `in`: `in` walks the prototype chain, so a placeholder
+     named {toString} or {constructor} would find a function on Object.prototype
+     and interpolate its source into the sentence. */
+  return value.replace(/\{(\w+)\}/g, (match, name) => (Object.hasOwn(vars, name) ? String(vars[name]) : match));
 }
 
 /** Plural helper: both languages take the same shape here. */

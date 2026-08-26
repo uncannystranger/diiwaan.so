@@ -117,8 +117,15 @@ router.post('/tickets/:ticketId/service', ...staff, async (req, res, next) => {
 /** status: completed | skipped | no_show | cancelled */
 router.post('/tickets/:ticketId/close', ...staff, async (req, res, next) => {
   try {
+    /* Omitting the status means "completed", which is the ordinary case and
+       worth the convenience. Sending one that is empty or unknown is a
+       different thing: `|| 'completed'` treated '' as absent and quietly closed
+       the ticket as served, so a caller who meant something else got a 200 and
+       the wrong outcome recorded against a real customer. Absent defaults;
+       present is taken at its word and validated. */
+    const status = req.body.status === undefined ? 'completed' : req.body.status;
     const ticket = await queueService.closeTicket(
-      req.business, req.queue, req.params.ticketId, req.body.status || 'completed', { actorId: actor(req) }
+      req.business, req.queue, req.params.ticketId, status, { actorId: actor(req) }
     );
     res.json({ ticket: queueService.publicTicket(ticket) });
   } catch (error) { next(error); }
