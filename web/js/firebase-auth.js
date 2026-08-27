@@ -152,6 +152,26 @@ export const changePassword = (idToken, password) =>
     inside the SDK, and this decides whether it is worth loading at all. */
 const GOOGLE_PENDING = 'diiwaan:google-pending';
 
+/* What actually goes wrong on the way back, said in terms of what to do next.
+ *
+ * Every one of these used to arrive as "That Google sign-in did not complete.
+ * Please try again" — advice that is merely useless for a network blip and
+ * actively wrong for the first case, where trying again will fail the same way
+ * forever and the thing to do is use the password that already exists. */
+const GOOGLE_HUMAN = {
+  'auth/account-exists-with-different-credential': 'auth.errGoogleTakenByPassword',
+  'auth/email-already-in-use': 'auth.errGoogleTakenByPassword',
+  'auth/credential-already-in-use': 'auth.errGoogleTakenByPassword',
+  'auth/user-disabled': 'auth.errDisabled',
+  'auth/network-request-failed': 'auth.googleUnreachable',
+  'auth/too-many-requests': 'auth.errTooMany',
+  'auth/unauthorized-domain': 'auth.googleOffRedirect',
+  'auth/operation-not-allowed': 'auth.googleOffProvider'
+};
+
+/** The key for a human sentence about a Google failure, or '' when unknown. */
+export const googleReasonKey = code => GOOGLE_HUMAN[String(code)] || '';
+
 let sdk = null;
 
 async function googleSdk() {
@@ -224,6 +244,7 @@ export async function finishGoogle() {
     failure.code = error?.code || '';
     // A cancelled consent screen is a decision, not a fault worth reporting.
     failure.cancelled = /popup-closed|cancelled-popup|user-cancelled/.test(failure.code);
+    failure.reasonKey = googleReasonKey(failure.code);
     throw failure;
   }
 

@@ -230,8 +230,13 @@ export async function boot() {
       await handOver(account.refreshToken);
       if (account.name) googleName = account.name;
     } catch (error) {
-      // A cancelled consent screen is a decision, not a failure worth reporting.
-      if (!error?.cancelled) oauthError = t('auth.errGoogleFailed');
+      /* A cancelled consent screen is a decision, not a failure worth
+         reporting. Everything else says what happened, and the one that
+         matters most says what to do instead: an account already held by a
+         password will never open with Google, however many times it is tried. */
+      if (!error?.cancelled) {
+        oauthError = error?.reasonKey ? t(error.reasonKey) : t('auth.errGoogleFailed');
+      }
     }
     const intended = sessionStorage.getItem('diiwaan:after-google');
     sessionStorage.removeItem('diiwaan:after-google');
@@ -311,13 +316,20 @@ export async function signUp({ email, password, name }) {
 export async function startGoogle() {
   requireProvider();
 
-  /* The server walks the first step of the real flow once an hour and knows
-     whether Google accepts this origin's redirect URI. When it does not, saying
-     so here is kinder and more honest than sending somebody to Google to read
-     an OAuth error page about a misconfiguration they cannot fix. */
+  /* The server asks Google whether this project offers the provider at all, and
+     answers with a reason rather than a boolean. Saying so here is kinder than
+     sending somebody to Google to read an error page about a configuration they
+     cannot change — but it has to say the true thing.
+
+     "Not set up yet, use your email and password" was said for every one of
+     these, including the case where Google simply could not be reached, which
+     told a person to give up on a method that would have worked a minute later.
+     Switched off is permanent and worth redirecting away from; unreachable is
+     temporary and worth retrying. */
   if (runtime && runtime.googleAuth === false) {
-    const failure = new Error(t('auth.googleUnavailable'));
-    failure.reason = 'google_unavailable';
+    const transient = runtime.googleAuthReason === 'probe_failed';
+    const failure = new Error(t(transient ? 'auth.googleUnreachable' : 'auth.googleUnavailable'));
+    failure.reason = runtime.googleAuthReason || 'google_unavailable';
     throw failure;
   }
 

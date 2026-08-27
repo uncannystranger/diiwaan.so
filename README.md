@@ -278,6 +278,42 @@ is held as a pending action — no number is invented, because only the server c
 When the device reconnects, the pending join is replayed and the real ticket appears. Desk
 actions are never applied offline: the server stays authoritative over the queue.
 
+## Which parts of Firebase this uses, and which it does not
+
+Firebase Authentication, and nothing else. That is a decision with a reason, not
+an oversight, and it is worth writing down because "we have Firebase, use
+Firebase" is a reasonable-sounding instinct that would make this system worse.
+
+**Authentication — yes.** It owns identity. Passwords go over the REST API; the
+Google round trip goes through the Firebase JS SDK, vendored in `web/vendor`,
+because the OAuth client accepts Firebase's own `/__/auth/handler` and would
+otherwise need every origin registered by hand. Either way the result is the
+same: a refresh token handed to this app's API, sealed in the HttpOnly cookie,
+and an identity the server re-verifies on every request against Google's
+published keys. One session, one identity model.
+
+**Firestore — no.** It is provisioned on the project and answers
+`PERMISSION_DENIED` to anything unauthenticated, which is the right posture for
+a database holding nothing. Diiwaan stores nothing in it. Businesses,
+memberships, queues and tickets live in MongoDB behind `requireBusiness`, which
+resolves a tenant only through an active membership — an arrangement this
+repository holds 95 matrix checks and 32 cross-tenant checks over. Moving that
+metadata to Firestore would mean the same facts in two places, each with its own
+rules, and the isolation those suites currently prove would have to be proved
+again in a second system. The cost is real and there is nothing on the other
+side of it.
+
+**Realtime Database — no.** It is not provisioned, and the live queue already
+works: the desk holds an authenticated SSE stream, the customer page holds a
+public one, and both re-read the snapshot on every event so ordering and
+duplicate delivery cannot leave a fiction on screen. RTDB would be a second
+transport for state that already arrives, plus a second set of rules to keep in
+step with the first.
+
+If a use case turns up that MongoDB genuinely cannot serve, this is the order to
+reconsider in — but adding a store to demonstrate that a store is being used is
+how two sources of truth start disagreeing.
+
 ## Security
 
 - Identity comes only from a Firebase id token, verified against Google's published signing
