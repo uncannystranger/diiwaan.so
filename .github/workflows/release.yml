@@ -1,11 +1,29 @@
-# Every push to main becomes a release.
+# Every push to main becomes a release — once this account can run Actions again.
 #
-# This runs the moment the repository's Actions are able to run. A job that
-# reports "not started" with no steps has not failed a check — GitHub declined
-# to allocate a runner, which is an account-level matter and nothing here can
-# fix. Until then, tag and publish by hand:
+# The automatic trigger is currently OFF, deliberately. GitHub is refusing to
+# allocate a runner for this account:
 #
-#   git tag -a v1.0.2 -m "Diiwaan v1.0.2" && git push origin v1.0.2
+#   "The job was not started because your account is locked due to a billing
+#    issue."
+#
+# That refusal happens before any step runs, so the run is reported as a failed
+# check while having tested precisely nothing. Left on `push`, it stamped a red
+# X on every commit that said "your code is broken" when the code was fine and
+# the suites all passed locally. A signal that is always red regardless of the
+# work is worse than no signal: it trains you to ignore the one place a real
+# failure would appear.
+#
+# So pushes no longer start it. Nothing here is broken and nothing here needs
+# fixing — this file is correct and unchanged in substance.
+#
+# TO TURN IT BACK ON: clear the billing lock at
+# https://github.com/settings/billing, then uncomment the three `push:` lines
+# below. That is the entire restoration. Only the account holder can do the
+# first part; nothing in this repository can.
+#
+# Until then, tag and publish by hand:
+#
+#   git tag -a v1.8.1 -m "Diiwaan v1.8.1" && git push origin v1.8.1
 #
 # The version is derived from the commits themselves rather than from a file
 # somebody has to remember to edit: a commit body saying BREAKING takes the
@@ -16,12 +34,12 @@
 name: Release
 
 on:
-  push:
-    branches: [main]
-    # Documentation alone does not warrant a version. Everything else does —
-    # including this workflow, which otherwise could never test a change to
-    # itself.
-    paths-ignore: ['**.md']
+  # Documentation alone does not warrant a version. Everything else does —
+  # including this workflow, which otherwise could never test a change to
+  # itself. Re-enable by uncommenting these three lines; see the note above.
+  # push:
+  #   branches: [main]
+  #   paths-ignore: ['**.md']
   workflow_dispatch:
 
 permissions:
