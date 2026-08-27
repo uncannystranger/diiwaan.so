@@ -330,6 +330,7 @@ npm run test:palette      # the stylesheet and the server agree on the five seed
 npm run test:shell        # the worker precaches everything the first paint imports
 npm run test:session-isolation  # 27 checks: user A, sign out, user B — nothing carries over
 npm run test:tenant-isolation   # 22 checks: company A and company B in one browser
+npm run test:google-redirect    # 5 checks: Google returns via Firebase's handler
 ```
 
 The last four are pure — no database, no network, no credentials — so they run

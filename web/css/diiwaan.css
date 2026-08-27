@@ -2858,7 +2858,18 @@ html.retint, html.retint *, html.retint *::before, html.retint *::after {
      missed. Width is what was wrong, so width is what is set. */
   .mobile-nav__tool { min-width: 44px; min-height: 44px; }
   .switch { min-height: 44px; }
-  .seg button, .seg a, .chip { min-width: 44px; }
+
+  /* The narrow ones get their width from padding, not from a min-width.
+   *
+   * `min-width: 44px` looked like the obvious fix and was the wrong one: these
+   * sit in a flex row, where the default `min-width: auto` is what stops a flex
+   * item shrinking below its own content. Replacing it handed flex-shrink
+   * permission to squeeze them, and the multi-word tabs — Ganacsiga, Adeegyada,
+   * Shaqaalaha — clipped their labels at 390px, trading a small target for an
+   * unreadable one. Padding widens the single-character chips to 44px without
+   * ever letting a longer label shrink; the row scrolls sideways, as it already
+   * did, so nothing is lost to the extra width. */
+  .seg button, .seg a, .chip { padding-inline: 20px; }
 }
 
 /* ---------- the three ways in ----------

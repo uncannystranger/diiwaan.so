@@ -96,6 +96,9 @@ jobs:
       - name: One browser, two companies, nothing shared
         run: npm run test:tenant-isolation
 
+      - name: Google is sent to Firebase's handler, not this origin
+        run: npm run test:google-redirect
+
       - name: Both languages are complete
         run: |
           node -e "

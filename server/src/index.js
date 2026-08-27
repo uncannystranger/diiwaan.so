@@ -52,9 +52,30 @@ export async function createApp() {
         connectSrc: [
           "'self'",
           'https://identitytoolkit.googleapis.com',
-          'https://securetoken.googleapis.com'
+          'https://securetoken.googleapis.com',
+          /* Google sign-in goes through Firebase's own auth handler, which is
+             the only redirect URI this project's OAuth client accepts without a
+             console change. The SDK talks to that domain to settle the trip. */
+          ...(config.firebase.authDomain ? [`https://${config.firebase.authDomain}`] : [])
         ],
-        scriptSrc: ["'self'"],
+        /* The SDK itself is vendored and served from this origin, which is why
+           'self' still carries the bulk of it.
+
+           apis.google.com is the one addition, and it is not optional: the
+           Firebase auth handler settles the returning redirect through Google's
+           own gapi loader, and with it blocked getRedirectResult never resolves
+           — Google sign-in would appear to work right up until the moment it
+           silently did nothing. Measured as a CSP violation in the console
+           before this line existed. One named Google origin, required by the
+           feature, rather than a wildcard. */
+        scriptSrc: ["'self'", 'https://apis.google.com'],
+        /* Where that handler is allowed to run. Both named exactly: the
+           project's own Firebase domain, and the Google account chooser it
+           hands off to. */
+        frameSrc: [
+          ...(config.firebase.authDomain ? [`https://${config.firebase.authDomain}`] : []),
+          'https://accounts.google.com'
+        ],
         objectSrc: ["'none'"],
         // Nothing here is meant to be framed, and nothing here posts to another
         // origin. Both are clickjacking and exfiltration routes otherwise.

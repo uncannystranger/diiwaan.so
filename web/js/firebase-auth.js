@@ -1,11 +1,31 @@
 /* Firebase Authentication over its REST API.
 
-   Deliberately not the Firebase Web SDK. This app has no bundler, and its
-   content-security policy allows scripts from its own origin only — pulling a
-   megabyte of SDK from a CDN would mean loosening that. The REST endpoints do
-   everything sign-in needs, in the same shape session.js already uses for
-   GoTrue, and the only credential involved is the web api key, which Firebase
-   publishes on purpose.
+   Email and password go over REST. This app has no bundler, and its
+   content-security policy allows scripts from its own origin only, so pulling
+   the SDK from a CDN for the ordinary path would mean loosening that for no
+   gain: the REST endpoints do everything a password sign-in needs, and the only
+   credential involved is the web api key, which Firebase publishes on purpose.
+
+   Google is the exception, and the reason is Google's, not ours. Asking
+   identitytoolkit for an authorisation URL puts our own origin in the request
+   as the OAuth redirect_uri, so every origin the app is served from has to be
+   registered by hand on the OAuth client — and until someone does that, Google
+   answers redirect_uri_mismatch and the button cannot work anywhere. Measured:
+   both http://localhost:4173/ and https://diiwaan-so.vercel.app/ refused.
+
+   Firebase's own handler at <authDomain>/__/auth/handler is registered on that
+   client already, by Firebase, for every project. Routing the round trip
+   through it is what makes Google sign-in work without a console change, and
+   the supported way to drive that handler is the SDK — so the SDK is vendored
+   into web/vendor and imported from our own origin, which keeps script-src
+   'self' exactly as it was. It is loaded only when somebody actually presses
+   the Google button.
+
+   The SDK is a way to obtain a credential, not a second session. Its own
+   persistence is session-scoped and cleared the moment the credential is
+   handed over, because the refresh token still goes to our API and still ends
+   up in the same HttpOnly cookie every other sign-in uses. One identity model,
+   one session.
 
    This module knows nothing about the rest of the app. It signs in, signs up,
    refreshes, and reports failures in plain terms; session.js decides what that
@@ -15,9 +35,17 @@ const IDENTITY = 'https://identitytoolkit.googleapis.com/v1/accounts';
 const TOKEN = 'https://securetoken.googleapis.com/v1/token';
 
 let apiKey = '';
+/* The rest of the project config, needed only by the Google path: the SDK is
+   initialised with the same values /api/config already hands the browser. */
+let projectConfig = null;
 
-export const configure = key => { apiKey = key || ''; };
+export const configure = (key, project) => {
+  apiKey = key || '';
+  projectConfig = key ? (project || null) : null;
+};
 export const isConfigured = () => Boolean(apiKey);
+/** Google needs an auth domain to route through; without one it cannot be offered. */
+export const canUseGoogle = () => Boolean(apiKey && projectConfig?.authDomain);
 
 /* Firebase speaks in constants like EMAIL_NOT_FOUND. People do not. */
 const HUMAN = {
@@ -111,57 +139,102 @@ export const changePassword = (idToken, password) =>
 
 /* ---------- Google ----------
 
-   The redirect flow, done over REST. Firebase mints the authorisation URL with
-   its own OAuth client, so there is no client id or secret for this app to hold:
-   ask for a URL, send the person to Google, and hand the URL they come back with
-   to signInWithIdp. The sessionId ties the two halves together and is the reason
-   a stray callback URL cannot be replayed into somebody else's session. */
+   The round trip goes through Firebase's own handler rather than straight to
+   Google, because that handler is the only redirect URI on this OAuth client
+   that Google already accepts. The SDK owns that protocol — the handler is a
+   client-side page with an undocumented contract, not a redirect worth
+   reimplementing on guesswork in the one place a mistake means broken sign-in.
 
-const GOOGLE_SESSION = 'diiwaan.google.session';
+   Loaded on demand, from our own origin, so nothing is fetched for a visitor
+   who never presses the button and script-src stays 'self'. */
 
-/** Where Google returns to. Must be listed under Authentication → Authorised domains. */
-const continueUri = () => `${location.origin}/`;
+/** Set before leaving, read on the way back: the SDK's own pending state is
+    inside the SDK, and this decides whether it is worth loading at all. */
+const GOOGLE_PENDING = 'diiwaan:google-pending';
 
-/** Step one: ask Firebase for the URL to send the person to. */
-export async function startGoogle() {
-  const data = await call(`${IDENTITY}:createAuthUri?key=${apiKey}`, {
-    providerId: 'google.com',
-    continueUri: continueUri(),
-    authFlowType: 'CODE_FLOW',
-    oauthScope: 'openid email profile'
-  });
-  if (!data.authUri || !data.sessionId) throw new Error('OPERATION_NOT_ALLOWED');
-  /* sessionStorage, not localStorage: this belongs to one tab making one trip
-     to Google, and it should not outlive either. */
-  sessionStorage.setItem(GOOGLE_SESSION, data.sessionId);
-  return data.authUri;
+let sdk = null;
+
+async function googleSdk() {
+  if (sdk) return sdk;
+  sdk = (async () => {
+    const [app, auth] = await Promise.all([
+      import('../vendor/firebase-app.js'),
+      import('../vendor/firebase-auth.js')
+    ]);
+    const existing = app.getApps();
+    const instance = existing.length ? app.getApp() : app.initializeApp({
+      apiKey,
+      authDomain: projectConfig.authDomain,
+      projectId: projectConfig.projectId,
+      appId: projectConfig.appId
+    });
+    const client = auth.getAuth(instance);
+    /* Session-scoped, not the SDK default. The redirect throws this tab away
+       and comes back, so the pending sign-in has to survive that much and no
+       more — a second, longer-lived session sitting beside our cookie is the
+       thing this deliberately does not create. */
+    await auth.setPersistence(client, auth.browserSessionPersistence);
+    return { auth, client };
+  })();
+  return sdk;
 }
 
-/** True when this page load is Google returning with an answer. */
-export const isGoogleCallback = () => {
-  const query = new URLSearchParams(location.search);
-  return Boolean(sessionStorage.getItem(GOOGLE_SESSION))
-    && (query.has('code') || query.has('error'));
-};
-
-/** Step two: trade the URL Google sent us back to for a real session. */
-export async function finishGoogle() {
-  const sessionId = sessionStorage.getItem(GOOGLE_SESSION);
-  sessionStorage.removeItem(GOOGLE_SESSION);
-
-  const query = new URLSearchParams(location.search);
-  if (query.get('error')) {
-    const failure = new Error(query.get('error'));
-    // A cancelled consent screen is a decision, not a fault. Say nothing.
-    failure.cancelled = /access_denied|user_cancel/i.test(query.get('error'));
+/** Hands the browser to Google. Control leaves this page; finishGoogle resumes. */
+export async function startGoogle() {
+  if (!canUseGoogle()) {
+    const failure = new Error('OPERATION_NOT_ALLOWED');
+    failure.code = 'OPERATION_NOT_ALLOWED';
     throw failure;
   }
-  if (!sessionId) throw new Error('SESSION_EXPIRED');
+  const { auth, client } = await googleSdk();
+  const provider = new auth.GoogleAuthProvider();
+  provider.addScope('email');
+  provider.addScope('profile');
+  /* Always ask which account. Without it a person with several Google accounts
+     is silently signed in as whichever one the browser saw last, which on a
+     shared desk is somebody else's. */
+  provider.setCustomParameters({ prompt: 'select_account' });
+  try { sessionStorage.setItem(GOOGLE_PENDING, '1'); } catch { /* private mode */ }
+  await auth.signInWithRedirect(client, provider);
+}
 
-  const data = await call(`${IDENTITY}:signInWithIdp?key=${apiKey}`, {
-    requestUri: location.href,
-    sessionId,
-    returnSecureToken: true
-  });
-  return { ...shape(data), name: data.displayName || '' };
+/** True when this page load is Google coming back with an answer. */
+export const isGoogleCallback = () => {
+  try { return sessionStorage.getItem(GOOGLE_PENDING) === '1'; } catch { return false; }
+};
+
+/**
+ * Collects the credential Google returned and gives it up immediately.
+ *
+ * The refresh token goes to our own API, which seals it in the HttpOnly cookie
+ * every other sign-in uses, so a Google account and an email account are the
+ * same Diiwaan identity from here on. The SDK is signed out in the same breath:
+ * holding a second session would mean two things that both believe they know
+ * who is signed in, and eventually they disagree.
+ */
+export async function finishGoogle() {
+  try { sessionStorage.removeItem(GOOGLE_PENDING); } catch { /* private mode */ }
+  const { auth, client } = await googleSdk();
+
+  let result;
+  try {
+    result = await auth.getRedirectResult(client);
+  } catch (error) {
+    const failure = new Error(error?.code || 'GOOGLE_FAILED');
+    failure.code = error?.code || '';
+    // A cancelled consent screen is a decision, not a fault worth reporting.
+    failure.cancelled = /popup-closed|cancelled-popup|user-cancelled/.test(failure.code);
+    throw failure;
+  }
+
+  if (!result?.user) {
+    // Came back with nothing: the person turned around at the consent screen.
+    const failure = new Error('CANCELLED');
+    failure.cancelled = true;
+    throw failure;
+  }
+
+  const account = { refreshToken: result.user.refreshToken, name: result.user.displayName || '' };
+  await auth.signOut(client).catch(() => {});
+  return account;
 }

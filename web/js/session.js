@@ -79,7 +79,7 @@ export function abandonBoot() {
 }
 export const userId = () => state.session?.user?.id || null;
 export const appUrl = () => runtime?.appUrl || location.origin;
-export const googleAuthAvailable = () => Boolean(runtime?.googleAuth) && firebase.isConfigured();
+export const googleAuthAvailable = () => Boolean(runtime?.googleAuth) && firebase.canUseGoogle();
 
 /* Present only outside production, and only when the button is being withheld.
    It is a note to whoever can fix the configuration, not a message to anyone
@@ -209,7 +209,7 @@ export async function boot() {
       state.backendError = body?.detail || body?.error || t('auth.serviceReplied', { status: response.status });
     } else {
       runtime = body;
-      firebase.configure(body.firebase?.apiKey);
+      firebase.configure(body.firebase?.apiKey, body.firebase);
       state.backendError = '';
     }
   } catch (error) {
@@ -234,6 +234,8 @@ export async function boot() {
     const intended = sessionStorage.getItem('diiwaan:after-google');
     sessionStorage.removeItem('diiwaan:after-google');
     const back = isSignedIn() ? (intended || 'queue') : 'signin';
+    /* The address bar is rewritten either way, so nothing the handler appended
+       is left sitting in history for the next person on this device. */
     history.replaceState(null, '', `${location.pathname}#/${back}`);
   }
 
@@ -326,7 +328,8 @@ export async function startGoogle() {
     if (from && !['signin', 'signup'].includes(from)) {
       sessionStorage.setItem('diiwaan:after-google', from);
     }
-    location.assign(await firebase.startGoogle());
+    // Navigates on its own: the SDK owns the trip through Firebase's handler.
+    await firebase.startGoogle();
   } catch (error) {
     throw firebaseFailure(error);
   }

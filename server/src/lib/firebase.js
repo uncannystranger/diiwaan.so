@@ -88,12 +88,22 @@ let googleProbe = { ready: false, reason: 'checking', checkedAt: 0, running: fal
  * still be missing for most people, most of the time. */
 let googleProbeInFlight = null;
 
-/** Where Google is asked to return to. Must match what the browser sends. */
-export const googleRedirectUri = () => `${config.appUrl.replace(/\/+$/, '')}/`;
+/** Where Google is asked to return to. Must match what the browser sends.
+ *
+ * Firebase's own handler, not this app's origin. Sending our origin is what put
+ * every deployment behind a manual Google Cloud Console change: identitytoolkit
+ * passes continueUri through as the OAuth redirect_uri, so localhost and the
+ * production domain each had to be registered by hand, and until they were,
+ * Google answered redirect_uri_mismatch and the button could not work anywhere.
+ * The handler is registered on the project's OAuth client by Firebase itself,
+ * so this is the one redirect that is always already allowed. */
+export const googleRedirectUri = () =>
+  (config.firebase.authDomain ? `https://${config.firebase.authDomain}/__/auth/handler` : '');
 
 async function probeGoogle() {
   const key = config.firebase.apiKey;
-  if (!key) return false;
+  if (!key) return { ready: false, reason: 'provider_disabled' };
+  if (!config.firebase.authDomain) return { ready: false, reason: 'no_auth_domain' };
   try {
     const created = await fetch(
       `https://identitytoolkit.googleapis.com/v1/accounts:createAuthUri?key=${key}`,
@@ -208,8 +218,10 @@ export const warmGoogleProbe = () => {
  * act on it.
  *
  *   provider_disabled          Google is not enabled in the Firebase console
- *   redirect_uri_unregistered  enabled, but this origin is not an authorised
- *                              redirect URI on the OAuth client the console made
+ *   redirect_uri_unregistered  enabled, but Firebase's own auth handler is not
+ *                              an authorised redirect URI on the OAuth client
+ *   no_auth_domain             no authDomain configured, so there is nowhere to
+ *                              route the round trip through
  *   provider_refused           Google refused the request for some other reason
  *   probe_failed               Google could not be reached to find out
  */
