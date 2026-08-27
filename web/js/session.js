@@ -79,6 +79,8 @@ export function abandonBoot() {
 }
 export const userId = () => state.session?.user?.id || null;
 export const appUrl = () => runtime?.appUrl || location.origin;
+/** Which deployment this is. Configuration notes are for the others. */
+export const isProduction = () => runtime?.env === 'production';
 export const googleAuthAvailable = () => Boolean(runtime?.googleAuth) && firebase.canUseGoogle();
 
 /* Present only outside production, and only when the button is being withheld.

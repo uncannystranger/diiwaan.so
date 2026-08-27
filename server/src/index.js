@@ -146,9 +146,21 @@ export async function createApp() {
   app.get('/api/config', async (req, res) => {
     res.json({
       googleAuth: await googleSignInReady(),
-      /* Only in development. In production this is nobody's business but ours,
-         and a customer signing in should never read a configuration note. */
-      ...(config.env === 'production' ? {} : { googleAuthReason: googleSignInReason() }),
+      /* Always reported, including in production.
+       *
+       * It used to be withheld there, on the reasoning that a customer signing
+       * in should never read a configuration note — which is right about the
+       * screen and wrong about the API. Withholding it from both left nobody
+       * able to tell "switched off" from "misconfigured" on the one deployment
+       * that matters, and that is precisely the position this project spent a
+       * release in: the button hidden in production, offered locally, and no
+       * way to ask why without redeploying.
+       *
+       * The values are operational states — ok, turned_off, provider_disabled,
+       * no_auth_domain, probe_failed — and none of them is a secret. The screen
+       * still shows nothing in production; that decision moved to the view,
+       * where it belongs. */
+      googleAuthReason: googleSignInReason(),
       firebase: config.firebase.projectId && config.firebase.apiKey
         ? {
             projectId: config.firebase.projectId,

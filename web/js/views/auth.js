@@ -3,7 +3,7 @@
 
 import { esc, wordmark, themeButton, languageButton, icon, madeBy, diiwaanMark } from '../ui.js';
 import { t } from '../i18n.js';
-import { googleAuthAvailable, googleAuthReason, oauthError, state as sessionState } from '../session.js';
+import { googleAuthAvailable, googleAuthReason, isProduction, oauthError, state as sessionState } from '../session.js';
 
 /* When the API itself is unreachable, no form on this page can succeed. Saying
    so above the form is more useful than letting each attempt fail with a
@@ -60,6 +60,10 @@ function googleButton(ui) {
    never in production. A person signing in should not read configuration notes;
    a developer staring at a missing button should not have to guess. */
 function configNote() {
+  /* Shown only outside production. The API reports the reason everywhere now,
+     so an operator can ask; a customer signing in still reads nothing about
+     configuration. */
+  if (isProduction()) return '';
   const reason = googleAuthReason();
   if (!reason || reason === 'ok' || reason === 'turned_off') return '';
   const words = {
