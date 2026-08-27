@@ -40,6 +40,12 @@ async function loadTenant(req) {
 }
 
 const publicBusiness = business => ({
+  /* The stable identity behind the slug. A slug can be given up by one business
+     and taken by another later, and a device that scanned the first still holds
+     everything it cached under that name — so the browser needs something that
+     does not move to tell the two apart. Not a secret: it is already the id in
+     every QR-reachable URL a member of that business uses. */
+  id: String(business._id),
   name: business.name,
   slug: business.slug,
   city: business.city || '',
@@ -106,7 +112,12 @@ async function customerView(business, queue, token) {
 router.get('/:slug', readLimiter, async (req, res, next) => {
   try {
     const { business, queue } = await loadTenant(req);
-    res.json(await customerView(business, queue, asToken(req.query.token)));
+    /* Header first. The query parameter is still read so a page loaded from the
+       previous release keeps its ticket across the deploy; it can go once no
+       such tab is left. */
+    const ticketToken = asToken(req.get('x-diiwaan-ticket') || req.query.token);
+    if (ticketToken) res.setHeader('Cache-Control', 'private, no-store');
+    res.json(await customerView(business, queue, ticketToken));
   } catch (error) { next(error); }
 });
 

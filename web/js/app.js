@@ -1647,8 +1647,8 @@ const actions = {
     await navigate();
   },
   'cancel-pending'() {
-    store.customer.pendingJoin = null;
-    localStorage.removeItem('diiwaan:pending');
+    // The one belonging to the queue on screen, not whichever was held last.
+    store.clearPendingJoin();
     render();
   },
   async notify() {

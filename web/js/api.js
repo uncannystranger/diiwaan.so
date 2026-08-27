@@ -15,7 +15,7 @@ export class ApiError extends Error {
   }
 }
 
-async function request(method, path, body, { signal, raw = false } = {}) {
+async function request(method, path, body, { signal, raw = false, headers = {} } = {}) {
   const token = accessToken();
   let response;
   try {
@@ -24,7 +24,8 @@ async function request(method, path, body, { signal, raw = false } = {}) {
       signal,
       headers: {
         ...(body !== undefined && !(body instanceof FormData) ? { 'Content-Type': 'application/json' } : {}),
-        ...(token ? { Authorization: `Bearer ${token}` } : {})
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...headers
       },
       body: body instanceof FormData ? body : body === undefined ? undefined : JSON.stringify(body)
     });
@@ -92,8 +93,12 @@ export const api = {
   },
 
   /* public customer side */
+  /* The ticket token goes in a header, never the query string. It is the only
+     proof that this device is the one holding position four, and a query string
+     is written to CDN and proxy access logs and kept in browser history. */
   publicView: (slug, token) =>
-    request('GET', `/public/${encodeURIComponent(slug)}${token ? `?token=${encodeURIComponent(token)}` : ''}`),
+    request('GET', `/public/${encodeURIComponent(slug)}`, undefined,
+      { headers: token ? { 'X-Diiwaan-Ticket': token } : undefined }),
   join: (slug, input) => request('POST', `/public/${encodeURIComponent(slug)}/join`, input),
   leave: (slug, token) => request('POST', `/public/${encodeURIComponent(slug)}/leave`, { token }),
   reportUrl: (id, params = '') => `/api/businesses/${id}/report.pdf${params}`

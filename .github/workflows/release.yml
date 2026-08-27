@@ -93,6 +93,9 @@ jobs:
       - name: One device, two accounts, nothing shared
         run: npm run test:session-isolation
 
+      - name: One browser, two companies, nothing shared
+        run: npm run test:tenant-isolation
+
       - name: Both languages are complete
         run: |
           node -e "

@@ -76,6 +76,18 @@ export async function verifyFirebaseToken(token) {
 const PROBE_TTL_MS = 60 * 60 * 1000;
 let googleProbe = { ready: false, reason: 'checking', checkedAt: 0, running: false };
 
+/* The probe in flight, so a request that arrives before the first one lands can
+   wait for it rather than being told "no".
+ *
+ * This is the difference between a button that appears and one that never does.
+ * /api/config is fetched exactly once, at boot, and the answer is kept for the
+ * whole session — so on a cold server the first visitor asked before any probe
+ * had finished, got `ready: false`, and had no Google button until they
+ * happened to reload. On a serverless deployment every cold start is somebody's
+ * first visit, so with the redirect URI correctly registered the button could
+ * still be missing for most people, most of the time. */
+let googleProbeInFlight = null;
+
 /** Where Google is asked to return to. Must match what the browser sends. */
 export const googleRedirectUri = () => `${config.appUrl.replace(/\/+$/, '')}/`;
 
@@ -91,7 +103,10 @@ async function probeGoogle() {
         body: JSON.stringify({
           providerId: 'google.com',
           continueUri: googleRedirectUri(),
-          authFlowType: 'CODE_FLOW'
+          authFlowType: 'CODE_FLOW',
+          /* The same scopes the browser asks for. A probe of a different
+             request is a probe of a different question. */
+          oauthScope: 'openid email profile'
         }),
         signal: AbortSignal.timeout(6000)
       }
@@ -101,34 +116,83 @@ async function probeGoogle() {
 
     /* Following the URL is the only honest test: createAuthUri succeeds
        whatever the redirect URI is, and Google only objects at the consent
-       step. A rejection renders as a page naming the reason. */
+       step.
+
+       A refusal lands on accounts.google.com/signin/oauth/error with the reason
+       in an `authError` parameter, base64url of a protobuf whose readable parts
+       still name it. Reading the landing URL is what makes this reliable — the
+       rendered page is 800KB of markup in whatever language Google picked, and
+       matching a string in it is a coin toss. Success lands anywhere else: the
+       account chooser, a consent screen, or straight back to us if the person
+       already has a Google session. */
     const consent = await fetch(authUri, { redirect: 'follow', signal: AbortSignal.timeout(8000) });
-    const page = await consent.text();
-    return /redirect_uri_mismatch/i.test(page)
+    const landing = new URL(consent.url);
+    if (!/\/signin\/oauth\/error/.test(landing.pathname)) return { ready: true, reason: 'ok' };
+
+    let detail = landing.searchParams.get('authError') || '';
+    try {
+      detail = Buffer.from(detail.replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString('utf8');
+    } catch { /* keep it as it came; only the reason below is derived from it */ }
+
+    return /redirect_uri_mismatch/i.test(detail)
       ? { ready: false, reason: 'redirect_uri_unregistered' }
-      : { ready: true, reason: 'ok' };
+      : { ready: false, reason: 'provider_refused' };
   } catch {
     // Unreachable or slow: offer nothing rather than a dead button.
     return { ready: false, reason: 'probe_failed' };
   }
 }
 
-/** Cheap and synchronous. Refreshes itself in the background when stale. */
-export function googleSignInReady() {
+/** Starts a probe if the answer is missing or stale. Returns the one in flight. */
+function refreshGoogleProbe() {
+  if (googleProbeInFlight) return googleProbeInFlight;
+  googleProbe.running = true;
+  googleProbeInFlight = probeGoogle()
+    .catch(() => ({ ready: false, reason: 'probe_failed' }))
+    .then(result => {
+      googleProbe = { ...result, checkedAt: Date.now(), running: false };
+      googleProbeInFlight = null;
+      return googleProbe;
+    });
+  return googleProbeInFlight;
+}
+
+/**
+ * Whether to offer the Google button, waiting for a first answer if one is
+ * still coming.
+ *
+ * A known answer is returned immediately and a stale one is refreshed in the
+ * background, so the common request costs nothing. Only the case where nothing
+ * is known yet waits, and it waits with a deadline: /api/config is what the
+ * browser blocks on before it can render, so being slow here is a blank screen.
+ * Past the deadline the honest answer is "not yet", and the probe carries on so
+ * the next request has it.
+ */
+export async function googleSignInReady({ wait = 3000 } = {}) {
   if (String(process.env.FIREBASE_GOOGLE_AUTH || '').toLowerCase() === 'false') return false;
   if (!config.firebase.apiKey) return false;
 
+  const known = googleProbe.checkedAt > 0;
   const stale = Date.now() - googleProbe.checkedAt > PROBE_TTL_MS;
-  if (stale && !googleProbe.running) {
-    googleProbe.running = true;
-    // Deliberately not awaited: /api/config is what the browser waits on before
-    // it can render anything, and it answers from memory for that reason.
-    probeGoogle()
-      .then(result => { googleProbe = { ...result, checkedAt: Date.now(), running: false }; })
-      .catch(() => { googleProbe = { ready: false, reason: 'probe_failed', checkedAt: Date.now(), running: false }; });
-  }
-  return googleProbe.ready;
+
+  if (known && !stale) return googleProbe.ready;
+  const pending = refreshGoogleProbe();
+  // A stale answer is still an answer; refresh behind it rather than blocking.
+  if (known) return googleProbe.ready;
+
+  const settled = await Promise.race([
+    pending,
+    new Promise(resolve => setTimeout(() => resolve(null), wait))
+  ]);
+  return settled ? settled.ready : false;
 }
+
+/* Asked at start-up rather than on the first request, so a server that has been
+   up for a moment already knows the answer by the time anyone asks. */
+export const warmGoogleProbe = () => {
+  if (String(process.env.FIREBASE_GOOGLE_AUTH || '').toLowerCase() === 'false') return;
+  if (config.firebase.apiKey) refreshGoogleProbe();
+};
 
 /* Why the button is not being offered.
  *
@@ -142,6 +206,7 @@ export function googleSignInReady() {
  *   provider_disabled          Google is not enabled in the Firebase console
  *   redirect_uri_unregistered  enabled, but this origin is not an authorised
  *                              redirect URI on the OAuth client the console made
+ *   provider_refused           Google refused the request for some other reason
  *   probe_failed               Google could not be reached to find out
  */
 export const googleSignInReason = () =>

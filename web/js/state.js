@@ -13,11 +13,42 @@ import { connect } from './realtime.js';
 
 const CACHE_PREFIX = 'diiwaan:cache:';
 const TICKET_PREFIX = 'diiwaan:ticket:';
-const PENDING_KEY = 'diiwaan:pending';
+/* Filed under the queue it belongs to. It held the customer's name and phone
+   under one device-wide key, so only one offline join could exist at a time and
+   nothing in the key said which business it was for. */
+const PENDING_PREFIX = 'diiwaan:pending:';
+const pendingKey = slug => `${PENDING_PREFIX}${slug}`;
 
 const listeners = new Set();
 export const subscribe = fn => (listeners.add(fn), () => listeners.delete(fn));
 export const notify = () => listeners.forEach(fn => fn());
+
+/* Which tenant the screen is on, as a number that only ever goes up.
+ *
+ * `owner` and `customer` are module singletons that a tenant switch mutates in
+ * place, and a fetch started before the switch resolves after it. Every one of
+ * these functions used to re-read `customer.slug` or `owner.business.id` after
+ * its await — so the value it wrote under was whatever the singleton held when
+ * the response happened to land, not the one it asked about. The last response
+ * to arrive decided what rendered and what went into localStorage.
+ *
+ * That is how company A's business name, logo and queue ended up written to
+ * `diiwaan:cache:public:company-b`, where every later scan of B's code read it
+ * back before any network call. Persisted, so a reload did not help.
+ *
+ * So each context carries a generation. A switch bumps it; an async writer
+ * captures it before awaiting and checks it after. A response from the previous
+ * tenant is still parsed — it may be a perfectly good response — but it is not
+ * allowed to write anything. It belongs to a screen nobody is looking at.
+ *
+ * The tenant key is captured the same way and used for the storage key, rather
+ * than read again from the singleton. */
+let ownerGeneration = 0;
+let customerGeneration = 0;
+
+/** True while the work started at `generation` still belongs to the current screen. */
+const ownerCurrent = generation => generation === ownerGeneration;
+const customerCurrent = generation => generation === customerGeneration;
 
 const read = key => {
   try { return JSON.parse(localStorage.getItem(key) || 'null'); } catch { return null; }
@@ -147,14 +178,28 @@ export async function loadAccount() {
 }
 
 export async function openBusiness(businessId) {
+  /* Opening a business is a tenant switch, so everything the previous one left
+     on the desk goes now — not when its replacement happens to arrive. The
+     derived screens are the ones that bit: their freshness stamps were only
+     ever reset on sign-out, so switching businesses inside the TTL made
+     loadAnalytics and loadMembers return without fetching, and B's Overview
+     showed A's takings and B's Team screen showed A's staff. */
+  const generation = ++ownerGeneration;
+  owner.snapshot = null;
+  owner.services = [];
+  owner.members = [];
+  owner.analytics = null;
+  analyticsAt = 0;
+  membersAt = 0;
+
   const cached = read(`${CACHE_PREFIX}${businessId}`);
   if (cached) {
     owner.business = cached.business;
     owner.snapshot = cached.snapshot;
     owner.services = cached.services || [];
-    notify();
+  } else {
+    owner.business = null;
   }
-
   owner.loading = !cached;
   notify();
 
@@ -164,35 +209,47 @@ export async function openBusiness(businessId) {
       api.queue(businessId),
       api.services(businessId)
     ]);
+    /* A second openBusiness overtook this one. Its business is the one on
+       screen, and writing ours would put a different tenant's queue under it. */
+    if (!ownerCurrent(generation)) return;
     owner.business = business;
     owner.snapshot = snapshot;
     owner.services = services;
     owner.error = null;
     write(`${CACHE_PREFIX}${businessId}`, { business, snapshot, services });
-    startStream(businessId);
+    startStream(businessId, generation);
   } catch (error) {
+    if (!ownerCurrent(generation)) return;
     owner.error = error;
     if (error.offline) owner.connection = 'offline';
   } finally {
-    owner.loading = false;
-    notify();
+    if (ownerCurrent(generation)) {
+      owner.loading = false;
+      notify();
+    }
   }
 }
 
 export async function refreshQueue({ silent = true } = {}) {
   if (!owner.business) return;
+  const generation = ownerGeneration;
+  const businessId = owner.business.id;
   try {
-    const snapshot = await api.queue(owner.business.id);
+    const snapshot = await api.queue(businessId);
+    if (!ownerCurrent(generation)) return;
     owner.snapshot = snapshot;
     owner.error = null;
-    write(`${CACHE_PREFIX}${owner.business.id}`, {
+    /* Keyed by the business this asked about. Re-reading the singleton here
+       wrote one tenant's waiting customers, by name, into another's cache. */
+    write(`${CACHE_PREFIX}${businessId}`, {
       business: owner.business, snapshot, services: owner.services
     });
   } catch (error) {
+    if (!ownerCurrent(generation)) return;
     if (!silent) owner.error = error;
     if (error.offline) owner.connection = 'offline';
   } finally {
-    notify();
+    if (ownerCurrent(generation)) notify();
   }
 }
 
@@ -205,14 +262,18 @@ const ANALYTICS_TTL = 15_000;
 export async function loadAnalytics(params = '', { force = false } = {}) {
   if (!owner.business) return;
   if (!force && owner.analytics && Date.now() - analyticsAt < ANALYTICS_TTL) return;
+  const generation = ownerGeneration;
   try {
-    owner.analytics = await api.analytics(owner.business.id, params);
+    const analytics = await api.analytics(owner.business.id, params);
+    if (!ownerCurrent(generation)) return;
+    owner.analytics = analytics;
     analyticsAt = Date.now();
   } catch (error) {
+    if (!ownerCurrent(generation)) return;
     owner.analytics = owner.analytics || null;
     if (error.offline) owner.connection = 'offline';
   } finally {
-    notify();
+    if (ownerCurrent(generation)) notify();
   }
 }
 
@@ -221,29 +282,36 @@ let membersAt = 0;
 export async function loadMembers({ force = false } = {}) {
   if (!owner.business) return;
   if (!force && owner.members.length && Date.now() - membersAt < 30_000) return;
+  const generation = ownerGeneration;
   owner.membersLoading = !owner.members.length;
   notify();
   try {
     const { members } = await api.members(owner.business.id);
+    if (!ownerCurrent(generation)) return;
     owner.members = members;
     membersAt = Date.now();
   } catch { /* the screen shows its own empty state */ } finally {
-    owner.membersLoading = false;
-    notify();
+    if (ownerCurrent(generation)) {
+      owner.membersLoading = false;
+      notify();
+    }
   }
 }
 
-function startStream(businessId) {
+function startStream(businessId, generation = ownerGeneration) {
   disconnectStream?.();
   owner.connection = 'reconnecting';
   disconnectStream = connect(`/api/businesses/${businessId}/stream`, {
     authenticated: true,
     onStatus: status => {
+      // A stream belonging to a business nobody is looking at says nothing.
+      if (!ownerCurrent(generation)) return;
       owner.connection = status;
       notify();
       if (status === 'live') refreshQueue();
     },
     onEvent: () => {
+      if (!ownerCurrent(generation)) return;
       // Events say "something moved"; the snapshot is re-read so ordering and
       // duplicate delivery cannot leave the desk showing a fiction. Anything
       // derived from it — today's numbers — is invalidated at the same time.
@@ -266,14 +334,17 @@ export function closeStream() {
  * a second round trip asking for state the server just sent us.
  */
 export async function act(key, fn, { onError, adopt = false } = {}) {
+  const generation = ownerGeneration;
+  const businessId = owner.business?.id;
   owner.busy.add(key);
   notify();
   try {
     const result = await fn();
+    if (!ownerCurrent(generation)) return result;
     if (adopt && result?.snapshot) {
       owner.snapshot = result.snapshot;
       analyticsAt = 0;
-      write(`${CACHE_PREFIX}${owner.business.id}`, {
+      write(`${CACHE_PREFIX}${businessId}`, {
         business: owner.business, snapshot: result.snapshot, services: owner.services
       });
     } else {
@@ -281,6 +352,7 @@ export async function act(key, fn, { onError, adopt = false } = {}) {
     }
     return result;
   } catch (error) {
+    if (!ownerCurrent(generation)) throw error;
     if (onError) onError(error);
     else owner.error = error;
     notify();
@@ -319,59 +391,110 @@ export const rememberCustomer = (slug, name) => {
 
 export const forgetCustomer = slug => localStorage.removeItem(`${KNOWN_PREFIX}${slug}`);
 
+/** Drops the held offline join for one queue. */
+export const clearPendingJoin = (slug = customer.slug) => {
+  localStorage.removeItem(pendingKey(slug));
+  if (customer.slug === slug) { customer.pendingJoin = null; notify(); }
+};
+
 export async function openCustomer(slug) {
+  /* Scanning a second business's code is a tenant switch, and nothing of the
+     first one survives it.
+   *
+   * The view, the error and the pending join used to be left standing. On the
+   * no-cache branch the screen still held the previous business, and the app's
+   * "still loading" guard is `loading && !view` — false, because the view was
+   * populated. So company A's ticket, queue position and name rendered at
+   * company B's URL, A's palette was painted over B's page and then persisted
+   * as B's remembered paint, and A's pending-join card offered to retry into a
+   * queue the person was no longer looking at.
+   *
+   * The old stream is closed here rather than after the first fetch, because
+   * it was outliving the switch: A's events kept firing refreshCustomer, which
+   * by then was reading B's slug. */
+  const generation = ++customerGeneration;
+  closeCustomerStream();
+  clearTimeout(customerTimer);
+
   customer.slug = slug;
   customer.token = ticketToken(slug);
+  customer.view = null;
+  customer.error = null;
+  customer.pendingJoin = read(pendingKey(slug));
+  customer.connection = 'idle';
+
   const cached = read(`${CACHE_PREFIX}public:${slug}`);
-  if (cached) {
-    customer.view = cached;
-    customer.loading = false;
-    notify();
-  } else {
-    customer.loading = true;
-    notify();
-  }
+  customer.view = cached || null;
+  customer.loading = !cached;
+  notify();
 
   await refreshCustomer();
-  startCustomerStream(slug);
+  if (!customerCurrent(generation)) return;
+  startCustomerStream(slug, generation);
   flushPending();
 }
 
 export async function refreshCustomer() {
   if (!customer.slug) return;
+  /* Both captured before the await. Everything below is written under the
+     business this request actually asked about. */
+  const generation = customerGeneration;
+  const slug = customer.slug;
   try {
-    const view = await api.publicView(customer.slug, customer.token);
+    const view = await api.publicView(slug, customer.token);
+    if (!customerCurrent(generation)) return;
     view.at = new Date().toISOString();   // when this device last heard from the server
     customer.view = view;
     customer.error = null;
     customer.connection = customer.connection === 'offline' ? 'live' : customer.connection;
-    write(`${CACHE_PREFIX}public:${customer.slug}`, view);
+
+    /* A slug can be given up by one business and taken by another later — the
+       unique index makes it unique at any moment, not over time. Everything
+       this device remembers under that slug then belongs to the wrong company,
+       so the identity is checked against the id the server just resolved and
+       the stale entries are dropped rather than shown. */
+    const previous = read(`${CACHE_PREFIX}public:${slug}`);
+    if (previous?.business?.id && view.business?.id && previous.business.id !== view.business.id) {
+      forgetCustomer(slug);
+      clearTicketToken(slug);
+      localStorage.removeItem(pendingKey(slug));
+      localStorage.removeItem(`diiwaan:paint:q:${slug}`);
+      customer.token = '';
+      customer.pendingJoin = null;
+    }
+
+    write(`${CACHE_PREFIX}public:${slug}`, view);
     if (!view.ticket && customer.token) {
       // The desk finished or removed this ticket; stop claiming it.
-      clearTicketToken(customer.slug);
+      clearTicketToken(slug);
       customer.token = '';
     }
   } catch (error) {
+    if (!customerCurrent(generation)) return;
     customer.error = error;
     if (error.offline) customer.connection = 'offline';
   } finally {
-    customer.loading = false;
-    notify();
+    if (customerCurrent(generation)) {
+      customer.loading = false;
+      notify();
+    }
   }
 }
 
 let customerStream = null;
 let customerTimer = null;
 
-function startCustomerStream(slug) {
+function startCustomerStream(slug, generation = customerGeneration) {
   customerStream?.();
   customerStream = connect(`/api/public/${encodeURIComponent(slug)}/stream`, {
     onStatus: status => {
+      if (!customerCurrent(generation)) return;
       customer.connection = status;
       notify();
       if (status === 'live') refreshCustomer();
     },
     onEvent: () => {
+      if (!customerCurrent(generation)) return;
       clearTimeout(customerTimer);
       customerTimer = setTimeout(() => refreshCustomer(), 150);
     }
@@ -385,9 +508,14 @@ export function closeCustomerStream() {
 
 export async function joinQueue(input) {
   const slug = customer.slug;
+  const generation = customerGeneration;
   try {
     const { token, view } = await api.join(slug, input);
+    /* The ticket is this person's regardless of what they are looking at now,
+       so it is always filed. Only the screen is left alone. */
     setTicketToken(slug, token);
+    localStorage.removeItem(pendingKey(slug));
+    if (!customerCurrent(generation)) return view;
     customer.token = token;
     customer.view = view;
     customer.pendingJoin = null;
@@ -397,24 +525,27 @@ export async function joinQueue(input) {
     if (error.offline) {
       // Safe to hold: the server has not issued a number, so nothing is claimed
       // until this replays. The screen says so rather than inventing a ticket.
-      customer.pendingJoin = { slug, input, at: Date.now() };
-      write(PENDING_KEY, customer.pendingJoin);
-      notify();
+      const held = { slug, input, at: Date.now() };
+      write(pendingKey(slug), held);
+      if (customer.slug === slug) { customer.pendingJoin = held; notify(); }
     }
     throw error;
   }
 }
 
 export async function flushPending() {
-  const pending = customer.pendingJoin || read(PENDING_KEY);
-  if (!pending || pending.slug !== customer.slug || !navigator.onLine) return;
+  const slug = customer.slug;
+  const pending = customer.pendingJoin || read(pendingKey(slug));
+  if (!pending || pending.slug !== slug || !navigator.onLine) return;
+  const generation = customerGeneration;
   try {
-    const { token, view } = await api.join(pending.slug, pending.input);
-    setTicketToken(pending.slug, token);
+    const { token, view } = await api.join(slug, pending.input);
+    setTicketToken(slug, token);
+    localStorage.removeItem(pendingKey(slug));
+    if (!customerCurrent(generation)) return;
     customer.token = token;
     customer.view = view;
     customer.pendingJoin = null;
-    localStorage.removeItem(PENDING_KEY);
     notify();
   } catch {
     /* still offline or the queue closed — the pending card stays visible */
@@ -422,8 +553,12 @@ export async function flushPending() {
 }
 
 export async function leaveQueue() {
-  const { view } = await api.leave(customer.slug, customer.token);
-  clearTicketToken(customer.slug);
+  const generation = customerGeneration;
+  const slug = customer.slug;
+  const { view } = await api.leave(slug, customer.token);
+  // The ticket that was given up is this one, whatever the screen moved on to.
+  clearTicketToken(slug);
+  if (!customerCurrent(generation)) return;
   customer.token = '';
   customer.view = view;
   notify();

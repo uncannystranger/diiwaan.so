@@ -100,17 +100,25 @@ export function landingView(ui) {
           <p class="lead" style="max-width:52ch">${t('auth.lead')}</p>
           <!-- The three ways in, all of them visible. Google used to be behind
                the sign-in screen, which meant somebody who signs in with Google
-               had to first find a form they were never going to fill in. -->
+               had to first find a form they were never going to fill in.
+
+               Offered only when the server has confirmed Google will actually
+               accept this origin. It was offered unconditionally here while the
+               sign-in screen already gated it, so pressing it on the landing
+               page raised "Google sign-in is not set up yet" — a dead control
+               that told the person to go and do something else. Where it cannot
+               be offered, development sees why and nobody else sees anything. -->
           <div class="entry-actions">
             <div class="btn-row">
               <a class="btn entry-cta entry-cta--primary" href="#/signup">${t('auth.createQueue')}</a>
               <a class="btn btn--ghost entry-cta" href="#/signin">${t('auth.signIn')}</a>
             </div>
-            <button type="button" class="btn btn--google entry-cta--google"
-                    data-action="google-auth" ${ui?.googleBusy ? 'disabled aria-busy="true"' : ''}>
-              ${ui?.googleBusy ? '<span class="spinner"></span>' : googleMark(19)}
-              <span>${ui?.googleBusy ? t('auth.googleGoing') : t('auth.google')}</span>
-            </button>
+            ${googleAuthAvailable() ? `
+              <button type="button" class="btn btn--google entry-cta--google"
+                      data-action="google-auth" ${ui?.googleBusy ? 'disabled aria-busy="true"' : ''}>
+                ${ui?.googleBusy ? '<span class="spinner"></span>' : googleMark(19)}
+                <span>${ui?.googleBusy ? t('auth.googleGoing') : t('auth.google')}</span>
+              </button>` : configNote()}
             ${ui?.auth?.errors?.form ? `<p class="error-text">${esc(ui.auth.errors.form)}</p>` : ''}
           </div>
           <div class="row-flex gap-24 mt-8">
