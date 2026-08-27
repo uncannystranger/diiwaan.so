@@ -76,18 +76,6 @@ export async function verifyFirebaseToken(token) {
 const PROBE_TTL_MS = 60 * 60 * 1000;
 let googleProbe = { ready: false, reason: 'checking', checkedAt: 0, running: false };
 
-/* The probe in flight, so a request that arrives before the first one lands can
-   wait for it rather than being told "no".
- *
- * This is the difference between a button that appears and one that never does.
- * /api/config is fetched exactly once, at boot, and the answer is kept for the
- * whole session — so on a cold server the first visitor asked before any probe
- * had finished, got `ready: false`, and had no Google button until they
- * happened to reload. On a serverless deployment every cold start is somebody's
- * first visit, so with the redirect URI correctly registered the button could
- * still be missing for most people, most of the time. */
-let googleProbeInFlight = null;
-
 /** Where Google is asked to return to. Must match what the browser sends.
  *
  * Firebase's own handler, not this app's origin. Sending our origin is what put
@@ -145,56 +133,32 @@ async function probeGoogle() {
   }
 }
 
-/** Starts a probe if the answer is missing or stale. Returns the one in flight. */
-function refreshGoogleProbe() {
-  if (googleProbeInFlight) return googleProbeInFlight;
-  googleProbe.running = true;
-  googleProbeInFlight = probeGoogle()
-    .catch(() => ({ ready: false, reason: 'probe_failed' }))
-    .then(result => {
-      googleProbe = { ...result, checkedAt: Date.now(), running: false };
-      googleProbeInFlight = null;
-      return googleProbe;
-    });
-  return googleProbeInFlight;
-}
-
 /**
- * Whether to offer the Google button, waiting for a first answer if one is
- * still coming.
+ * Whether to offer the Google button.
  *
- * A known answer is returned immediately and a stale one is refreshed in the
- * background, so the common request costs nothing. Only the case where nothing
- * is known yet waits, and it waits with a deadline: /api/config is what the
- * browser blocks on before it can render, so being slow here is a blank screen.
- * Past the deadline the honest answer is "not yet", and the probe carries on so
- * the next request has it.
+ * A fresh answer is returned from memory; a stale or missing one is fetched
+ * here, inside the request, and awaited.
+ *
+ * It deliberately keeps no promise between requests. The previous version
+ * started a probe in the background and shared the pending promise with
+ * whoever asked next, which is reasonable on a server that keeps running and
+ * wrong on one that does not: Vercel freezes the function the moment it
+ * answers, so that promise never settled, and every later request joined the
+ * same dead wait and timed out. The button stayed hidden in production while
+ * the identical code offered it locally. Only the result is cached now, so the
+ * worst case is one extra call per cold start rather than a permanent no.
  */
-export async function googleSignInReady({ wait = 3000 } = {}) {
+export async function googleSignInReady() {
   if (String(process.env.FIREBASE_GOOGLE_AUTH || '').toLowerCase() === 'false') return false;
   if (!config.firebase.apiKey) return false;
 
-  const known = googleProbe.checkedAt > 0;
-  const stale = Date.now() - googleProbe.checkedAt > PROBE_TTL_MS;
+  const fresh = googleProbe.checkedAt > 0 && Date.now() - googleProbe.checkedAt < PROBE_TTL_MS;
+  if (fresh) return googleProbe.ready;
 
-  if (known && !stale) return googleProbe.ready;
-  const pending = refreshGoogleProbe();
-  // A stale answer is still an answer; refresh behind it rather than blocking.
-  if (known) return googleProbe.ready;
-
-  const settled = await Promise.race([
-    pending,
-    new Promise(resolve => setTimeout(() => resolve(null), wait))
-  ]);
-  return settled ? settled.ready : false;
+  const result = await probeGoogle();
+  googleProbe = { ...result, checkedAt: Date.now(), running: false };
+  return googleProbe.ready;
 }
-
-/* Asked at start-up rather than on the first request, so a server that has been
-   up for a moment already knows the answer by the time anyone asks. */
-export const warmGoogleProbe = () => {
-  if (String(process.env.FIREBASE_GOOGLE_AUTH || '').toLowerCase() === 'false') return;
-  if (config.firebase.apiKey) refreshGoogleProbe();
-};
 
 /* Why the button is not being offered.
  *

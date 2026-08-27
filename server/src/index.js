@@ -7,7 +7,7 @@ import rateLimit from 'express-rate-limit';
 import cookieParser from 'cookie-parser';
 import path from 'node:path';
 import { config, assertConfig, ROOT } from './config.js';
-import { googleSignInReady, googleSignInReason, warmGoogleProbe } from './lib/firebase.js';
+import { googleSignInReady, googleSignInReason } from './lib/firebase.js';
 import { subscriberCounts } from './services/realtime.js';
 import { connect, disconnect } from './db.js';
 import { withUser } from './middleware/auth.js';
@@ -231,12 +231,6 @@ export async function createApp() {
   app.get(/^\/(?!api\/).*/, (req, res) => res.sendFile(path.join(web, 'index.html')));
 
   app.use(errorHandler);
-
-  /* Ask Google now rather than when somebody first needs the answer. On a
-     serverless deployment every cold start is a first visit, and a probe that
-     only begins when /api/config is called is a probe that request has to wait
-     for. Started here, it is usually finished before anyone asks. */
-  warmGoogleProbe();
 
   return app;
 }
