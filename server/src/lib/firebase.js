@@ -105,6 +105,23 @@ async function probeGoogle() {
   if (!key) return { ready: false, reason: 'provider_disabled' };
   if (!config.firebase.authDomain) return { ready: false, reason: 'no_auth_domain' };
   try {
+    /* One call, and it answers the only question left.
+     *
+     * This used to ask for an authorisation URL and then follow it all the way
+     * to Google's consent screen, because the redirect URI was this app's own
+     * origin and the only way to find out whether somebody had registered it
+     * was to watch Google refuse. That question is gone: the redirect is now
+     * Firebase's handler, which Firebase registers on every project's OAuth
+     * client itself. What remains is whether Google is switched on as a
+     * provider at all, and createAuthUri says so directly — it returns an
+     * authUri when it is and OPERATION_NOT_ALLOWED when it is not.
+     *
+     * Dropping the second leg matters beyond tidiness. It was a redirect chase
+     * ending in 800KB of markup, and on a serverless deployment the function is
+     * frozen the moment it answers — so a probe started in the background never
+     * finished, every cold start lost the race, and production reported the
+     * button unavailable while the same code said otherwise locally. A probe
+     * that cannot finish inside one request is not a probe, it is a guess. */
     const created = await fetch(
       `https://identitytoolkit.googleapis.com/v1/accounts:createAuthUri?key=${key}`,
       {
@@ -114,43 +131,14 @@ async function probeGoogle() {
           providerId: 'google.com',
           continueUri: googleRedirectUri(),
           authFlowType: 'CODE_FLOW',
-          /* The same scopes the browser asks for. A probe of a different
-             request is a probe of a different question. */
           oauthScope: 'openid email profile'
         }),
         signal: AbortSignal.timeout(6000)
       }
     );
-    const { authUri } = await created.json();
-    if (!authUri) return { ready: false, reason: 'provider_disabled' };
-
-    /* Following the URL is the only honest test: createAuthUri succeeds
-       whatever the redirect URI is, and Google only objects at the consent
-       step.
-
-       A refusal lands on accounts.google.com/signin/oauth/error with the reason
-       in an `authError` parameter, base64url of a protobuf whose readable parts
-       still name it. Reading the landing URL is what makes this reliable — the
-       rendered page is 800KB of markup in whatever language Google picked, and
-       matching a string in it is a coin toss. Success lands anywhere else: the
-       account chooser, a consent screen, or straight back to us if the person
-       already has a Google session. */
-    const consent = await fetch(authUri, { redirect: 'follow', signal: AbortSignal.timeout(8000) });
-    const landing = new URL(consent.url);
-    /* The verdict is in the URL, so the body — 800KB of consent or error markup
-       — is never read. Unread, it holds its socket open until the pool notices;
-       cancelling hands it back now. */
-    consent.body?.cancel().catch(() => {});
-    if (!/\/signin\/oauth\/error/.test(landing.pathname)) return { ready: true, reason: 'ok' };
-
-    let detail = landing.searchParams.get('authError') || '';
-    try {
-      detail = Buffer.from(detail.replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString('utf8');
-    } catch { /* keep it as it came; only the reason below is derived from it */ }
-
-    return /redirect_uri_mismatch/i.test(detail)
-      ? { ready: false, reason: 'redirect_uri_unregistered' }
-      : { ready: false, reason: 'provider_refused' };
+    const body = await created.json().catch(() => ({}));
+    if (!created.ok || !body.authUri) return { ready: false, reason: 'provider_disabled' };
+    return { ready: true, reason: 'ok' };
   } catch {
     // Unreachable or slow: offer nothing rather than a dead button.
     return { ready: false, reason: 'probe_failed' };
@@ -218,11 +206,8 @@ export const warmGoogleProbe = () => {
  * act on it.
  *
  *   provider_disabled          Google is not enabled in the Firebase console
- *   redirect_uri_unregistered  enabled, but Firebase's own auth handler is not
- *                              an authorised redirect URI on the OAuth client
  *   no_auth_domain             no authDomain configured, so there is nowhere to
  *                              route the round trip through
- *   provider_refused           Google refused the request for some other reason
  *   probe_failed               Google could not be reached to find out
  */
 export const googleSignInReason = () =>

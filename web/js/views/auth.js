@@ -64,7 +64,7 @@ function configNote() {
   if (!reason || reason === 'ok' || reason === 'turned_off') return '';
   const words = {
     provider_disabled: t('auth.googleOffProvider'),
-    redirect_uri_unregistered: t('auth.googleOffRedirect'),
+    no_auth_domain: t('auth.googleOffRedirect'),
     probe_failed: t('auth.googleOffUnknown'),
     checking: t('auth.googleChecking')
   };
