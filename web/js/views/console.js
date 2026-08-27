@@ -454,8 +454,15 @@ export function frame(ui, ctx, current, inner) {
   return `
   <div class="${cx('screen', current === 'queue' && 'screen--fixed')}">
     ${chrome(current, ctx)}
-    ${verifyStrip(ui)}
     <main id="main">${inner}</main>
+    <!-- After the work, not in front of it.
+         This sat between the chrome and the page, so a standing reminder about
+         an email address outranked every heading on every screen — the first
+         thing the eye met on the queue was a note about something that can wait
+         indefinitely. It is still here, still dismissible, and still says the
+         same thing; it just no longer claims to be the most important object on
+         the page. -->
+    ${verifyStrip(ui)}
     <footer class="console-footer">${watermark()}${madeBy()}</footer>
     ${mobileNav(current)}
     ${ui.accountOpen ? accountSheet(ctx) : ''}

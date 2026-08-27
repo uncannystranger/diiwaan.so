@@ -3099,6 +3099,9 @@ html.retint, html.retint *, html.retint *::before, html.retint *::after {
  * whenever. So it keeps its colour, at a whisper, and gives the hierarchy back
  * to the work. */
 .verify-strip {
+  /* It follows the page now, so it needs a little air above it rather than the
+     margin it used to borrow from the chrome. */
+  margin-top: 8px;
   display: flex;
   align-items: center;
   gap: 12px;
