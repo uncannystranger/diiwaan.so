@@ -8,7 +8,7 @@
    screen re-reads state when it hears one, which makes duplicate or out-of-order
    delivery harmless. A reconnect resumes with Last-Event-ID so nothing is missed. */
 
-import { accessToken } from './session.js';
+import { accessToken, freshAccessToken } from './session.js';
 
 const BACKOFF_MS = [1000, 2000, 4000, 8000, 15000];
 const SILENCE_MS = 45_000; // the server pings every 25s
@@ -57,12 +57,16 @@ export function connect(path, { onEvent, onStatus, authenticated = false } = {})
     while (!closed) {
       controller = new AbortController();
       try {
+        /* Renewed before connecting, not read as-is. A stream opened with the
+           token a sleeping tab woke up holding is refused, and the log showed
+           exactly that: two refusals eleven seconds apart and then silence. */
+        const token = authenticated ? await freshAccessToken() : null;
         const response = await fetch(path, {
           signal: controller.signal,
           headers: {
             Accept: 'text/event-stream',
             ...(lastEventId ? { 'Last-Event-ID': String(lastEventId) } : {}),
-            ...(authenticated && accessToken() ? { Authorization: `Bearer ${accessToken()}` } : {})
+            ...(token ? { Authorization: `Bearer ${token}` } : {})
           }
         });
 

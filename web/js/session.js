@@ -46,6 +46,41 @@ export function onSessionChange(fn) {
 export const accessToken = () => state.session?.accessToken || null;
 export const isSignedIn = () => Boolean(state.session);
 
+/* The token is good for an hour and is replaced by a timer set a minute before
+   it runs out. Timers are the problem: a browser throttles or drops them
+   entirely in a tab that is backgrounded, and a laptop that sleeps takes the
+   whole clock with it. The tab wakes holding a token that expired hours ago,
+   every request comes back 401, and the desk simply stops working — which is
+   what the production log showed, a queue call refused at 23:20:57 followed by
+   the stream giving up.
+ *
+ * So expiry is checked against the clock at the moment of use rather than
+ * trusted to have been handled. Anything within this window of running out is
+ * renewed before the request goes out. */
+const RENEW_WITHIN_S = 90;
+
+const tokenExpired = () => {
+  const at = state.session?.expiresAt;
+  return typeof at === 'number' && at - Math.floor(Date.now() / 1000) < RENEW_WITHIN_S;
+};
+
+/** One renewal at a time, however many requests notice at once. */
+let renewing = null;
+
+/**
+ * The access token, renewed first if it is spent.
+ *
+ * Every authenticated request goes through here, so a tab that has been asleep
+ * mints a new token on its first call back rather than firing a burst of 401s
+ * and looking signed out.
+ */
+export async function freshAccessToken() {
+  if (!state.session || !tokenExpired()) return accessToken();
+  renewing ??= restore().finally(() => { renewing = null; });
+  await renewing;
+  return accessToken();
+}
+
 /** True until boot has resolved identity. No routing decision is valid before this clears. */
 export const isInitializing = () => state.phase === 'initializing';
 

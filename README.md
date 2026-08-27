@@ -369,6 +369,7 @@ npm run test:tenant-isolation   # 22 checks: company A and company B in one brow
 npm run test:google-redirect    # 5 checks: Google returns via Firebase's handler
 npm run test:google-button      # 15 checks: the button is live only when Google is
 npm run test:session-restore    # 15 checks: refresh keeps you signed in; 503 is not a sign-out
+npm run test:token-renewal      # 12 checks: an expired token renews rather than logging you out
 ```
 
 The last four are pure — no database, no network, no credentials — so they run

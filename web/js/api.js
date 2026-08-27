@@ -4,7 +4,11 @@
    that identity may see. Failures come back as ApiError so screens can show the
    server's own sentence rather than a generic apology. */
 
-import { accessToken } from './session.js';
+import { accessToken, freshAccessToken, restore, isSignedIn } from './session.js';
+
+/* The session endpoints mint tokens; retrying them with a token would be
+   circular. */
+const isAuthPath = path => path.startsWith('/auth/session');
 
 export class ApiError extends Error {
   constructor(status, message, details) {
@@ -15,20 +19,47 @@ export class ApiError extends Error {
   }
 }
 
+async function send(method, path, body, { signal, headers = {}, token } = {}) {
+  return fetch(`/api${path}`, {
+    method,
+    signal,
+    headers: {
+      ...(body !== undefined && !(body instanceof FormData) ? { 'Content-Type': 'application/json' } : {}),
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...headers
+    },
+    body: body instanceof FormData ? body : body === undefined ? undefined : JSON.stringify(body)
+  });
+}
+
 async function request(method, path, body, { signal, raw = false, headers = {} } = {}) {
-  const token = accessToken();
+  /* Renewed before the request rather than on a timer. A tab that has been
+     asleep holds an expired token, and asking for one here is what stops the
+     first call back turning into a 401. */
+  const token = isSignedIn() ? await freshAccessToken() : accessToken();
   let response;
   try {
-    response = await fetch(`/api${path}`, {
-      method,
-      signal,
-      headers: {
-        ...(body !== undefined && !(body instanceof FormData) ? { 'Content-Type': 'application/json' } : {}),
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        ...headers
-      },
-      body: body instanceof FormData ? body : body === undefined ? undefined : JSON.stringify(body)
-    });
+    response = await send(method, path, body, { signal, headers, token });
+
+    /* A 401 on a request we believed was authenticated means the token died
+       between minting it and using it — a clock that jumped, a renewal that
+       never fired, a token revoked elsewhere. The cookie is the authority and
+       it is still here, so ask it once for a new token and try again.
+     *
+     * Without this the desk simply stopped: every call answered 401, nothing
+     * renewed anything, and the only way back was a reload — which is how an
+     * expired token came to look like being signed out.
+     *
+     * Only once, and only when the retry has a genuinely different token, so a
+     * real refusal cannot become a loop. */
+    if (response.status === 401 && isSignedIn() && !isAuthPath(path)) {
+      const stale = token;
+      await restore();
+      const renewed = accessToken();
+      if (renewed && renewed !== stale) {
+        response = await send(method, path, body, { signal, headers, token: renewed });
+      }
+    }
   } catch (error) {
     if (error.name === 'AbortError') throw error;
     throw new ApiError(0, 'You appear to be offline.');

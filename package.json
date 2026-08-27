@@ -1,6 +1,6 @@
 {
   "name": "diiwaan",
-  "version": "1.13.2",
+  "version": "1.13.3",
   "private": true,
   "description": "Diiwaan \u2014 multi-tenant queue management for Somali businesses. Firebase Auth + MongoDB, no framework, no build step.",
   "type": "module",
@@ -25,7 +25,8 @@
     "test:tenant-isolation": "node web/test/tenant-isolation.test.mjs",
     "test:google-redirect": "node server/test/google-redirect.test.mjs",
     "test:google-button": "node web/test/google-button.test.mjs",
-    "test:session-restore": "node web/test/session-restore.test.mjs"
+    "test:session-restore": "node web/test/session-restore.test.mjs",
+    "test:token-renewal": "node web/test/token-renewal.test.mjs"
   },
   "engines": {
     "node": ">=20"

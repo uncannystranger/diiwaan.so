@@ -105,6 +105,9 @@ jobs:
       - name: A refresh does not sign anybody out
         run: npm run test:session-restore
 
+      - name: A slept tab renews instead of looking signed out
+        run: npm run test:token-renewal
+
       - name: Both languages are complete
         run: |
           node -e "
