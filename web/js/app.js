@@ -370,6 +370,20 @@ function applyScope(resolved) {
   retint(() => { root.dataset.scope = scope; });
 }
 
+/* The Google SDK is fetched while a sign-in screen sits idle, so that pressing
+   the button opens a popup inside the gesture that asked for one rather than
+   after a quarter-megabyte download. Only these screens carry the button, so
+   nobody else pays for it. Once, and never on a screen without it. */
+let googleWarmed = false;
+function warmGoogleFor(resolved) {
+  if (googleWarmed || !ENTRY_KINDS.has(resolved.kind)) return;
+  if (!session.googleAuthAvailable()) return;
+  googleWarmed = true;
+  const warm = () => session.warmGoogle();
+  if (typeof requestIdleCallback === 'function') requestIdleCallback(warm, { timeout: 2000 });
+  else setTimeout(warm, 300);
+}
+
 function applyBrand(resolved) {
   /* A business's palette is never painted onto Diiwaan's own front door. */
   if (ENTRY_KINDS.has(resolved.kind)) {
@@ -529,6 +543,7 @@ function render() {
   const caret = keep && 'selectionStart' in active ? active.selectionStart : null;
 
   applyScope(resolvedRoute);
+  warmGoogleFor(resolvedRoute);
   applyCustomerTheme(resolvedRoute);
   applyBrand(resolvedRoute);
   if (resolvedRoute.kind === 'customer') greetArrival();
@@ -1079,11 +1094,19 @@ const actions = {
     ui.auth.errors = {};
     render();
     try {
-      await session.startGoogle();
+      const session_ = await session.startGoogle();
+      /* A popup that completed leaves us signed in without ever going
+         anywhere, so this tab has to move itself. Null means the browser
+         refused the popup and the page is already on its way to Google. */
+      if (session_) {
+        ui.googleBusy = false;
+        await navigate();
+      }
     } catch (error) {
       // We never left, so the button has to come back.
       ui.googleBusy = false;
-      ui.auth.errors = { form: error.message };
+      /* Closing the Google window is not a failure to report back. */
+      if (!error?.cancelled) ui.auth.errors = { form: error.message };
       render();
     }
   },

@@ -37,14 +37,12 @@ export const config = {
     projectId: process.env.FIREBASE_PROJECT_ID || '',
     apiKey: process.env.FIREBASE_API_KEY || '',
     authDomain: process.env.FIREBASE_AUTH_DOMAIN || '',
-    appId: process.env.FIREBASE_APP_ID || '',
-    /* Whether to offer the Google button. Enabling the provider in the Firebase
-       console is only half of it: this app sends people to Google directly
-       rather than through the Web SDK, so its own origins must also be listed as
-       authorised redirect URIs on the OAuth client the console created, or
-       Google answers redirect_uri_mismatch. This flag stays false until that is
-       done — an absent button beats one that dead-ends. */
-    googleAuth: String(process.env.FIREBASE_GOOGLE_AUTH || '').toLowerCase() === 'true'
+    appId: process.env.FIREBASE_APP_ID || ''
+    /* There was a `googleAuth` flag here, read by nothing, describing an
+       architecture this app no longer has — it explained that our own origins
+       must be authorised redirect URIs, which stopped being true when the round
+       trip moved to Firebase's handler. googleSignInReady() asks Google itself
+       and is the only answer anyone reads. */
   },
 
   mongo: {

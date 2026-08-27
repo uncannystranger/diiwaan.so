@@ -4,7 +4,81 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Diiwaan — a queue your customers can join by scanning</title>
-<meta name="description" content="Create your account, brand your queue, print one QR code. Customers join with no app and no account.">
+<meta name="description" content="Diiwaan turns any counter into an orderly queue. Print one QR code; customers scan it, take a number and wait from their phone — no app, no account. Built for Somali businesses, in Somali and English.">
+
+<!-- ---------- how this page is found ----------
+
+     A single-page app is one document, so everything a crawler learns about
+     Diiwaan it learns here. The canonical is absolute and without a hash: the
+     routes inside this app are fragments, and a fragment is not a page — left
+     to guess, an indexer treats #/signin as a duplicate of the landing page and
+     splits the ranking between them. -->
+<link rel="canonical" href="https://diiwaan-so.vercel.app/">
+<meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1">
+<meta name="author" content="uncannystranger">
+<meta name="keywords" content="queue management, QR queue, Somali business, safka, waiting list, ticket system, Mogadishu, Somalia, digital queue, no-app queue">
+
+<!-- The card that appears when somebody shares the link. Without these, a paste
+     into WhatsApp — which is how this product will actually spread — renders a
+     bare URL. -->
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Diiwaan">
+<meta property="og:url" content="https://diiwaan-so.vercel.app/">
+<meta property="og:title" content="Diiwaan — a queue your customers can join by scanning">
+<meta property="og:description" content="Print one QR code. Customers scan, take a number, and wait from their phone — no app, no account.">
+<meta property="og:image" content="https://diiwaan-so.vercel.app/og.jpg">
+<meta property="og:image:type" content="image/jpeg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Diiwaan — a customer's ticket showing number A-27 and the people ahead of them">
+<meta property="og:locale" content="so_SO">
+<meta property="og:locale:alternate" content="en_US">
+
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Diiwaan — a queue your customers can join by scanning">
+<meta name="twitter:description" content="Print one QR code. Customers scan, take a number, and wait from their phone — no app, no account.">
+<meta name="twitter:image" content="https://diiwaan-so.vercel.app/og.jpg">
+
+<!-- Both languages the interface actually speaks, so a Somali search and an
+     English one can each find the page they expect. -->
+<link rel="alternate" hreflang="so" href="https://diiwaan-so.vercel.app/">
+<link rel="alternate" hreflang="en" href="https://diiwaan-so.vercel.app/">
+<link rel="alternate" hreflang="x-default" href="https://diiwaan-so.vercel.app/">
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "WebApplication",
+      "@id": "https://diiwaan-so.vercel.app/#app",
+      "name": "Diiwaan",
+      "url": "https://diiwaan-so.vercel.app/",
+      "applicationCategory": "BusinessApplication",
+      "operatingSystem": "Any device with a web browser",
+      "browserRequirements": "Requires JavaScript",
+      "inLanguage": ["so", "en"],
+      "description": "Queue management for small businesses. Print one QR code; customers scan it, take a number and wait from their phone, with no app and no account.",
+      "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+      "featureList": [
+        "Customers join a queue by scanning a QR code",
+        "No app and no account for the customer",
+        "Works offline and catches up when the connection returns",
+        "Your own colours, logo and printed sign",
+        "Somali and English"
+      ],
+      "author": { "@id": "https://diiwaan-so.vercel.app/#author" }
+    },
+    {
+      "@type": "Person",
+      "@id": "https://diiwaan-so.vercel.app/#author",
+      "name": "uncannystranger",
+      "url": "https://instagram.com/uncannystranger",
+      "sameAs": ["https://instagram.com/uncannystranger", "https://github.com/uncannystranger"]
+    }
+  ]
+}
+</script>
 <!-- The starting value only: theme.js replaces this with the resolved
      --canvas token as soon as the stylesheet lands, so a branded queue tints
      the browser chrome too. This literal is the house --p-base. -->

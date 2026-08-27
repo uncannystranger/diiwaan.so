@@ -45,15 +45,41 @@ function googleButton(ui) {
      first. aria-busy tells a screen reader the same thing the spinner tells
      everyone else. */
   const working = Boolean(ui?.googleBusy);
+
+  /* A button that cannot do the thing it names is disabled, and says why.
+   *
+   * This screen used to render it live whatever the server reported, on the
+   * reasoning that a control belonging to the product should be visible and
+   * answer honestly when pressed. Visible was right; live was not. Pressing it
+   * on a deployment where Google is switched off ran the whole click handler to
+   * reach a guard several layers down, and the person got a sentence about
+   * configuration in place of the sign-in they asked for. Disabled says the
+   * same thing before the click, which is where an answer is worth having, and
+   * it leaves the method visible so nobody wonders where it went. */
+  const available = googleAuthAvailable();
+  const disabled = working || ui?.busy || !available;
+
   return `
     <div class="or-rule"><span>${t('auth.orContinue')}</span></div>
     <button type="button" class="btn btn--google" data-action="google-auth"
-            ${working || ui?.busy ? 'disabled' : ''} ${working ? 'aria-busy="true"' : ''}>
+            ${disabled ? 'disabled' : ''} ${working ? 'aria-busy="true"' : ''}
+            ${available ? '' : `aria-describedby="google-why"`}>
       ${working ? '<span class="spinner"></span>' : googleMark(19)}
       <span>${working ? t('auth.googleGoing') : t('auth.google')}</span>
     </button>
-    <p class="hint center">${t('auth.googleHint')}</p>
+    ${available
+      ? `<p class="hint center">${t('auth.googleHint')}</p>`
+      : `<p class="hint center" id="google-why">${esc(unavailableSentence())}</p>`}
     ${configNote()}`;
+}
+
+/* Said to whoever is trying to sign in, so it is about them and not about the
+   deployment: what to do now, in plain words, in either language. The technical
+   reason stays in configNote(), which production never shows. */
+function unavailableSentence() {
+  return googleAuthReason() === 'probe_failed'
+    ? t('auth.googleUnreachable')
+    : t('auth.googleUnavailable');
 }
 
 /* Why the button is absent — shown only where the server chose to say, which is
@@ -151,6 +177,15 @@ export function landingView(ui) {
               <div class="eyebrow eyebrow--wide">${t('auth.yourNumber')}</div>
               <div class="numeral hero-ticket__number" style="font-size:64px;margin-top:8px">A-27</div>
               <div class="hint mt-8 hero-ticket__ahead">${t('auth.aheadExample')}</div>
+            </div>
+            <!-- The queue itself, moving.
+                 Five markers for the people in front; the front one is served
+                 and the rest step forward, over and over. It carries no words,
+                 so it says the same thing in both languages and in none — and
+                 it is the product's whole idea in one gesture, which is why it
+                 is the only thing on this page allowed to move on its own. -->
+            <div class="hero-queue" aria-hidden="true">
+              ${[0,1,2,3,4].map(i => `<span class="hero-queue__dot" style="--i:${i}"></span>`).join('')}
             </div>
             <!-- The line advances on its own: the queue moving is the product. -->
             <div class="meter meter--live"><i></i></div>

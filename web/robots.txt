@@ -1,0 +1,19 @@
+# Diiwaan — https://diiwaan-so.vercel.app
+
+User-agent: *
+Allow: /$
+Allow: /og.jpg
+Allow: /manifest.webmanifest
+
+# A queue page belongs to the business whose code was scanned, and to the person
+# holding the phone. It is reachable by anyone with the link, which is the point
+# of a QR code — but it is not a page to be found by searching for somebody
+# else's queue, and a crawler following one only ever indexes an empty waiting
+# room. The join and ticket routes are therefore closed.
+Disallow: /j/
+Disallow: /t/
+
+# Nothing behind the sign-in belongs in an index.
+Disallow: /api/
+
+Sitemap: https://diiwaan-so.vercel.app/sitemap.xml

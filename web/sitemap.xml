@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Diiwaan is one document. The routes inside it are fragments, and a fragment
+     is not a page — listing #/signin here would offer an indexer a duplicate of
+     the landing page under a second address. So the sitemap has one entry, and
+     it is the truthful one. -->
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url>
+    <loc>https://diiwaan-so.vercel.app/</loc>
+    <lastmod>2026-08-27</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>1.0</priority>
+  </url>
+</urlset>

@@ -99,6 +99,9 @@ jobs:
       - name: Google is sent to Firebase's handler, not this origin
         run: npm run test:google-redirect
 
+      - name: The Google button tells the truth about whether it works
+        run: npm run test:google-button
+
       - name: Both languages are complete
         run: |
           node -e "

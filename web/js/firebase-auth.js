@@ -189,24 +189,19 @@ async function googleSdk() {
       appId: projectConfig.appId
     });
     const client = auth.getAuth(instance);
-    /* Session-scoped, not the SDK default. The redirect throws this tab away
-       and comes back, so the pending sign-in has to survive that much and no
-       more — a second, longer-lived session sitting beside our cookie is the
-       thing this deliberately does not create. */
-    await auth.setPersistence(client, auth.browserSessionPersistence);
+    /* The SDK's own storage, not a session-scoped override.
+     *
+     * It was set to sessionStorage here, to avoid leaving a second long-lived
+     * session beside our cookie. Signing the SDK out the moment the credential
+     * is handed over achieves that already, and taking its storage away costs
+     * the redirect fallback the place it keeps the half-finished sign-in. */
+    await auth.setPersistence(client, auth.browserLocalPersistence).catch(() => {});
     return { auth, client };
   })();
   return sdk;
 }
 
-/** Hands the browser to Google. Control leaves this page; finishGoogle resumes. */
-export async function startGoogle() {
-  if (!canUseGoogle()) {
-    const failure = new Error('OPERATION_NOT_ALLOWED');
-    failure.code = 'OPERATION_NOT_ALLOWED';
-    throw failure;
-  }
-  const { auth, client } = await googleSdk();
+function googleProvider(auth) {
   const provider = new auth.GoogleAuthProvider();
   provider.addScope('email');
   provider.addScope('profile');
@@ -214,11 +209,99 @@ export async function startGoogle() {
      is silently signed in as whichever one the browser saw last, which on a
      shared desk is somebody else's. */
   provider.setCustomParameters({ prompt: 'select_account' });
-  try { sessionStorage.setItem(GOOGLE_PENDING, '1'); } catch { /* private mode */ }
-  await auth.signInWithRedirect(client, provider);
+  return provider;
 }
 
-/** True when this page load is Google coming back with an answer. */
+/* The popup could not be opened at all — as opposed to being opened and turned
+   down, which is a decision and belongs to the person. */
+const POPUP_UNAVAILABLE = /popup-blocked|operation-not-supported-in-this-environment|web-storage-unsupported/;
+
+/** Turns the SDK's result into the two things our own session needs. */
+async function takeCredential(auth, client, result) {
+  if (!result?.user) {
+    const failure = new Error('GOOGLE_NO_CREDENTIAL');
+    failure.code = 'auth/no-credential';
+    failure.reasonKey = 'auth.errGoogleFailed';
+    throw failure;
+  }
+  const account = { refreshToken: result.user.refreshToken, name: result.user.displayName || '' };
+  /* Given up immediately: the refresh token goes to our own API, which seals it
+     in the HttpOnly cookie every other sign-in uses, so a Google account and an
+     email account are the same Diiwaan identity from here on. Two things that
+     both believe they know who is signed in eventually disagree. */
+  await auth.signOut(client).catch(() => {});
+  return account;
+}
+
+/**
+ * Loads the SDK ahead of the click, without signing anybody in.
+ *
+ * A popup only opens if the browser still considers itself inside the gesture
+ * that asked for one, and a quarter of a megabyte fetched between the click and
+ * the call is long enough to lose that — the blocker fires and the person gets
+ * the redirect fallback, which is the path that does not survive the way back.
+ * Fetched while the sign-in screen sits idle instead, so the click waits for
+ * nothing. Only on screens that show the button, so a visitor who never signs
+ * in downloads none of it.
+ */
+export function warmGoogle() {
+  if (!canUseGoogle()) return;
+  googleSdk().catch(() => { sdk = null; });
+}
+
+/**
+ * Signs in with Google, in a popup.
+ *
+ * The popup is the primary path and the redirect is the fallback, which is the
+ * opposite of how this started, for a reason worth recording. A redirect leaves
+ * this origin, passes through Firebase's handler on firebaseapp.com, and comes
+ * back — and the SDK then has to recover the result the handler left behind, on
+ * a different origin from ours. Browsers now partition third-party storage, so
+ * that recovery reads an empty box: the person returns signed in as far as
+ * Google is concerned, getRedirectResult() answers null, and the app sees
+ * nothing at all. Measured on production, with the account chooser completed:
+ * back at #/signin, no session, IndexedDB empty.
+ *
+ * A popup posts its credential straight back to the window that opened it. No
+ * cross-origin storage is read, so there is nothing for partitioning to break,
+ * and the redirect URI stays Firebase's handler — the one Google accepts
+ * without anybody editing the OAuth client.
+ *
+ * Returns the account when the popup completed. Returns null when the browser
+ * refused a popup and the page has been sent to Google instead, which is
+ * finishGoogle()'s job to pick up.
+ */
+export async function startGoogle() {
+  if (!canUseGoogle()) {
+    const failure = new Error('OPERATION_NOT_ALLOWED');
+    failure.code = 'OPERATION_NOT_ALLOWED';
+    throw failure;
+  }
+  const { auth, client } = await googleSdk();
+  const provider = googleProvider(auth);
+
+  try {
+    return await takeCredential(auth, client, await auth.signInWithPopup(client, provider));
+  } catch (error) {
+    const code = error?.code || '';
+    if (!POPUP_UNAVAILABLE.test(code)) {
+      const failure = new Error(code || 'GOOGLE_FAILED');
+      failure.code = code;
+      // Closing the window is a decision, not a fault worth reporting.
+      failure.cancelled = /popup-closed-by-user|cancelled-popup-request|user-cancelled/.test(code);
+      failure.reasonKey = googleReasonKey(code);
+      throw failure;
+    }
+    /* No popup available — an embedded browser, or one configured to refuse.
+       The redirect is less reliable on returning, but it is the only way left,
+       and it is better than telling somebody their browser cannot sign in. */
+    try { sessionStorage.setItem(GOOGLE_PENDING, '1'); } catch { /* private mode */ }
+    await auth.signInWithRedirect(client, provider);
+    return null;
+  }
+}
+
+/** True when this page load is Google coming back from the redirect fallback. */
 export const isGoogleCallback = () => {
   try { return sessionStorage.getItem(GOOGLE_PENDING) === '1'; } catch { return false; }
 };
@@ -242,20 +325,19 @@ export async function finishGoogle() {
   } catch (error) {
     const failure = new Error(error?.code || 'GOOGLE_FAILED');
     failure.code = error?.code || '';
-    // A cancelled consent screen is a decision, not a fault worth reporting.
     failure.cancelled = /popup-closed|cancelled-popup|user-cancelled/.test(failure.code);
     failure.reasonKey = googleReasonKey(failure.code);
     throw failure;
   }
 
-  if (!result?.user) {
-    // Came back with nothing: the person turned around at the consent screen.
-    const failure = new Error('CANCELLED');
-    failure.cancelled = true;
-    throw failure;
-  }
-
-  const account = { refreshToken: result.user.refreshToken, name: result.user.displayName || '' };
-  await auth.signOut(client).catch(() => {});
-  return account;
+  /* Nothing came back, on a page load that knows a redirect was started.
+   *
+   * This was read as "the person turned around at the consent screen" and
+   * silently swallowed, which is how a real failure went undiagnosed: on a
+   * completed sign-in the app returned to #/signin with no session, no error,
+   * and nothing on screen to say anything had happened. Turning around does not
+   * bring you back here — the pending flag is only set on the way out and only
+   * survives if the round trip completed. So this is a failure, and it says so.
+   * The popup path exists because this is the one that browsers broke. */
+  return takeCredential(auth, client, result);
 }

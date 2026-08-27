@@ -75,7 +75,9 @@ export const madeBy = () => `
   <p class="credit">made with
     <svg viewBox="0 0 24 24" width="12" height="12" aria-hidden="true" focusable="false"
          style="vertical-align:-1px"><path fill="var(--brand, #E0912F)" d="M12 21s-7.5-4.6-9.5-9A5.3 5.3 0 0 1 12 6.6a5.3 5.3 0 0 1 9.5 5.4C19.5 16.4 12 21 12 21z"/></svg>
-    <span class="sr-only">love</span> by uncannystranger</p>`;
+    <span class="sr-only">love</span> by <a class="credit__who"
+      href="https://instagram.com/uncannystranger"
+      target="_blank" rel="me noopener noreferrer">uncannystranger</a></p>`;
 
 /** A whisper of Diiwaan on a business's own screens. */
 export const watermark = () => `

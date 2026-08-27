@@ -367,6 +367,7 @@ npm run test:shell        # the worker precaches everything the first paint impo
 npm run test:session-isolation  # 27 checks: user A, sign out, user B — nothing carries over
 npm run test:tenant-isolation   # 22 checks: company A and company B in one browser
 npm run test:google-redirect    # 5 checks: Google returns via Firebase's handler
+npm run test:google-button      # 15 checks: the button is live only when Google is
 ```
 
 The last four are pure — no database, no network, no credentials — so they run

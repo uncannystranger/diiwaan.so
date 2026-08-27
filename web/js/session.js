@@ -88,6 +88,9 @@ export const googleAuthAvailable = () => Boolean(runtime?.googleAuth) && firebas
    signing in. */
 export const googleAuthReason = () => (runtime?.googleAuthReason || '');
 
+/** Fetches the Google SDK ahead of a click, so the popup opens inside the gesture. */
+export const warmGoogle = () => firebase.warmGoogle();
+
 /** Set when a provider sent us back with a refusal instead of a session. */
 export let oauthError = '';
 
@@ -104,6 +107,10 @@ export const clearGoogleName = () => { googleName = ''; };
 function firebaseFailure(error) {
   const failure = new Error(error?.reasonKey ? t(error.reasonKey) : t('common.wentWrong'));
   failure.reason = error?.code || '';
+  /* Closing the Google window is a decision, not a fault. Carried through so
+     the screen can stay quiet about it rather than reporting a failure to
+     somebody who chose not to continue. */
+  failure.cancelled = Boolean(error?.cancelled);
   return failure;
 }
 
@@ -342,8 +349,17 @@ export async function startGoogle() {
     if (from && !['signin', 'signup'].includes(from)) {
       sessionStorage.setItem('diiwaan:after-google', from);
     }
-    // Navigates on its own: the SDK owns the trip through Firebase's handler.
-    await firebase.startGoogle();
+    /* Comes back with the credential when the popup completed, or null when the
+       browser refused a popup and the page has been sent to Google instead —
+       in which case this tab is on its way out and boot() resumes on return. */
+    const account = await firebase.startGoogle();
+    if (!account) return null;
+
+    await handOver(account.refreshToken);
+    if (account.name) googleName = account.name;
+    state.needsVerification = false;
+    emit();
+    return state.session;
   } catch (error) {
     throw firebaseFailure(error);
   }
