@@ -157,7 +157,7 @@ export function landingView(ui) {
               <div class="hint">${t('auth.tagline')}</div>
             </div>
           </div>
-          <h1 class="serif">${t('auth.headline')}</h1>
+          <h1 class="serif hero-title">${t('auth.headline')}</h1>
           <p class="lead" style="max-width:52ch">${t('auth.lead')}</p>
           <!-- The three ways in, all of them visible. Google used to be behind
                the sign-in screen, which meant somebody who signs in with Google

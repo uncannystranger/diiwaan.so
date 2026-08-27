@@ -102,6 +102,9 @@ jobs:
       - name: The Google button tells the truth about whether it works
         run: npm run test:google-button
 
+      - name: A refresh does not sign anybody out
+        run: npm run test:session-restore
+
       - name: Both languages are complete
         run: |
           node -e "

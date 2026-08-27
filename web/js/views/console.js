@@ -338,9 +338,14 @@ export function overviewView(ui, ctx) {
       </div>
 
       <div class="stats mt-24" style="gap:24px">
+        <!-- The headline figure, and the one place a dash is not a number.
+             Drawn at display scale, an em-dash is a wide pale bar sitting where
+             a value belongs — it reads as a skeleton that never resolves. The
+             idle class takes it back down to text size; the sentence underneath
+             is what actually says nobody is being served. -->
         <div class="stat stat--wide">
           <div class="eyebrow" style="letter-spacing:.24em">${t('con.nowServing')}</div>
-          <b class="numeral" data-anim-key="serving">${snapshot?.serving ? esc(snapshot.serving.label) : '—'}</b>
+          <b class="numeral ${snapshot?.serving ? '' : 'numeral--idle'}" data-anim-key="serving">${snapshot?.serving ? esc(snapshot.serving.label) : '—'}</b>
           <div class="hint mt-4">${snapshot?.serving ? esc(snapshot.serving.name) : t('con.nobodyInService')}</div>
         </div>
         <div class="stat"><div class="eyebrow">${t('con.waiting')}</div><b>${snapshot?.counts.waiting ?? '—'}</b></div>

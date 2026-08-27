@@ -64,9 +64,14 @@ export const isInitializing = () => state.phase === 'initializing';
 /* What boot actually established, in one place, because two paths now reach it:
    a restore that answered in time, and one that answered afterwards. */
 function settlePhase() {
-  state.phase = isSignedIn() ? 'authenticated'
-    : state.backendError ? 'error'
-      : 'unauthenticated';
+  if (isSignedIn()) { state.phase = 'authenticated'; return; }
+  /* A restore that could not find out is not a person who is signed out. Saying
+     `unauthenticated` here is what put an owner on the landing page after a
+     refresh their session would have survived. */
+  if (restoreFailed && !state.backendError) {
+    state.backendError = t('auth.serviceUnreachable');
+  }
+  state.phase = (state.backendError || restoreFailed) ? 'error' : 'unauthenticated';
 }
 
 export function abandonBoot() {
@@ -165,7 +170,15 @@ function adopt(payload) {
   };
   clearTimeout(renewTimer);
   // Renew a minute early so no request ever races the clock.
-  renewTimer = setTimeout(() => restore().catch(() => signOut()), Math.max(30, payload.expiresIn - 60) * 1000);
+  /* A renewal that fails is only a sign-out when the session is genuinely over.
+     Signing out on any failure meant a moment of bad network mid-shift threw the
+     desk back to the front door. When we could not tell, the existing token is
+     still good for the minute it has left and the next renewal tries again. */
+  renewTimer = setTimeout(() => {
+    restore().then(session => {
+      if (!session && !restoreWasInconclusive()) signOut();
+    }).catch(() => { /* inconclusive: keep what we have */ });
+  }, Math.max(30, payload.expiresIn - 60) * 1000);
   emit();
   return state.session;
 }
@@ -193,14 +206,40 @@ async function handOver(refreshToken) {
 let restoring = false;
 export const isRestoring = () => restoring;
 
-/** Restores the session held in the HttpOnly cookie; null when there is none. */
+/* Set when a restore could not find out, as opposed to finding nobody.
+ *
+ * These are different answers and the app used to give them the same one. A 503
+ * — our API keeping the cookie because Google would not answer — was read as
+ * "no session", which settled the phase to `unauthenticated` and put a signed-in
+ * owner on the landing page. Whether we know is now carried back with the
+ * result, and the caller decides what to show. */
+let restoreFailed = false;
+export const restoreWasInconclusive = () => restoreFailed;
+
+/**
+ * Restores the session held in the HttpOnly cookie.
+ *
+ * Returns the session, or null. A null means one of two things and the flag
+ * above says which: 204 is "there is nobody signed in on this device", and
+ * anything else is "we could not tell" — a network that never reached us, or an
+ * API that answered 503 because it could not reach Google. The second must
+ * never be rendered as the front door.
+ */
 export async function restore() {
   restoring = true;
+  restoreFailed = false;
   try {
     const response = await sessionFetch('GET');
-    if (!response.ok || response.status === 204) return null;
+    if (response.status === 204) return null;            // genuinely nobody
+    if (!response.ok) {
+      // 401 is a real sign-out; the cookie is already gone. Anything else is us
+      // not knowing, and the cookie is still there to try again with.
+      restoreFailed = response.status !== 401;
+      return null;
+    }
     return adopt(await response.json());
   } catch {
+    restoreFailed = true;                                 // never reached the API
     return null;
   } finally {
     restoring = false;

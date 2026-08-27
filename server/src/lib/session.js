@@ -95,18 +95,56 @@ const claimedEmail = token => {
    different shape. Unlike GoTrue it does not rotate the refresh token — the same
    one comes back — but the cookie is rewritten regardless so its expiry slides
    forward and an active owner is never signed out mid-shift. */
+/* The refusals that actually mean "this session is over".
+ *
+ * Everything else Google can answer with — a rate limit, a bad minute in one of
+ * its regions, a socket that never opened — means "ask me again", and the two
+ * were being treated identically. Any non-OK response became a 401, the caller
+ * deleted the cookie, and a thirty-day session that was perfectly valid was
+ * destroyed by a hiccup. The person was signed out for real, and the next
+ * refresh put them on the landing page with nothing to say why.
+ *
+ * Google names the definitive ones in the body. Only these end a session. */
+const SESSION_IS_OVER = /TOKEN_EXPIRED|INVALID_REFRESH_TOKEN|USER_DISABLED|USER_NOT_FOUND|INVALID_GRANT_TYPE|MISSING_REFRESH_TOKEN|CREDENTIAL_MISMATCH/i;
+
+/** Thrown when we could not find out — the cookie must survive this. */
+export class SessionUnknownError extends HttpError {
+  constructor(detail) {
+    super(503, 'We could not reach the sign-in service. Please try again.');
+    this.transient = true;
+    this.detail = detail;
+  }
+}
+
 async function performExchange(refreshToken) {
-  const response = await fetch(
-    `https://securetoken.googleapis.com/v1/token?key=${config.firebase.apiKey}`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({ grant_type: 'refresh_token', refresh_token: refreshToken })
+  let response;
+  try {
+    response = await fetch(
+      `https://securetoken.googleapis.com/v1/token?key=${config.firebase.apiKey}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({ grant_type: 'refresh_token', refresh_token: refreshToken }),
+        signal: AbortSignal.timeout(8000)
+      }
+    );
+  } catch (error) {
+    // Never reached Google at all. That says nothing about the session.
+    throw new SessionUnknownError(error?.name || 'network');
+  }
+
+  const data = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    const reason = data?.error?.message || data?.error_description || '';
+    if (SESSION_IS_OVER.test(reason)) {
+      throw new HttpError(401, 'Your session has expired — please sign in again.');
     }
-  );
-  if (!response.ok) throw new HttpError(401, 'Your session has expired — please sign in again.');
-  const data = await response.json();
-  if (!data.id_token) throw new HttpError(401, 'Your session has expired — please sign in again.');
+    /* A 429 or a 5xx from Google is Google's problem, not this person's. */
+    throw new SessionUnknownError(`${response.status} ${reason}`.trim());
+  }
+
+  if (!data.id_token) throw new SessionUnknownError('no id_token in a 200');
 
   const shaped = {
     access_token: data.id_token,

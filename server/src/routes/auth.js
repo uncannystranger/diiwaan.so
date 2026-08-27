@@ -50,7 +50,15 @@ router.get('/session', sessionLimiter, requireClientHeader, async (req, res, nex
       setSessionCookie(res, data.refresh_token);
       res.json(sessionPayload(data));
     } catch (error) {
-      clearSessionCookie(res); // the refresh token is spent or revoked
+      /* The cookie is only destroyed when Google has actually said this session
+         is over. It used to go on any failure at all, which meant a rate limit
+         or a bad minute at Google signed somebody out for good — they refreshed
+         and met the landing page, with a thirty-day session thrown away for a
+         problem that had nothing to do with them.
+
+         A transient failure keeps the cookie and answers 503, which the browser
+         reads as "could not find out" rather than "logged out". */
+      if (!error?.transient) clearSessionCookie(res);
       throw error;
     }
   } catch (error) { next(error); }

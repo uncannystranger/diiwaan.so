@@ -118,6 +118,26 @@
     radial-gradient(80% 42% at 100% 4%, var(--wash-b), transparent 62%);
 
   --tap: 44px;
+
+  /* ---------- the radius scale ----------
+
+     Twenty-seven different corner radii were in use, most of them a pixel or
+     two apart: 13 beside 14, 17 beside 18, 21 beside 22, 26 beside 24. Nobody
+     chose those differences and nobody can see them one at a time; together
+     they are the reason surfaces never quite look like a set.
+
+     Six steps, each with a job. The near-duplicates fold into the nearest one,
+     which moves nothing by more than two pixels and makes every future control
+     land on the same grid by default. Sizes that are genuinely distinct — the
+     large panels and sheets — keep their own step rather than being flattened
+     into the others. */
+  --r-xs: 6px;      /* ticks, meters, the smallest marks */
+  --r-sm: 12px;     /* chips, tags, compact controls */
+  --r-md: 18px;     /* buttons, inputs, the everyday control */
+  --r-lg: 24px;     /* cards and rows */
+  --r-xl: 32px;     /* panels */
+  --r-2xl: 40px;    /* sheets and the largest surfaces */
+  --r-pill: 999px;  /* anything that should read as a capsule */
 }
 
 /* ---------- Diiwaan's own front door ----------
@@ -623,12 +643,28 @@ p { margin: 0; }
 .btn:link, .btn:visited, .btn:hover, .btn:focus, .btn:active { color: var(--on-brand); }
 .btn:hover { transform: translateY(-1px); background: color-mix(in srgb, var(--brand) 92%, var(--p-emphasis)); }
 .btn:active { transform: scale(.985); background: color-mix(in srgb, var(--brand) 86%, var(--p-emphasis)); }
-.btn[disabled], .btn[aria-busy="true"] {
-  opacity: .55;
+/* ---------- inert is not the same as working ----------
+
+   These two shared a rule, so a button you had just pressed and a button you
+   could not press wore the same face — and the shared rule repainted the
+   background with the brand, which meant a quiet, deliberately neutral control
+   became MORE branded the moment it was disabled. Backwards on both counts.
+
+   Disabled keeps its own surface and has the colour drained out of it: the
+   shape stays, the invitation goes. Busy keeps its colour, because you pressed
+   it and it is doing the thing you asked — dimming it there is the interface
+   flinching at its own work. */
+.btn[disabled]:not([aria-busy="true"]) {
+  opacity: .5;
+  filter: saturate(.35);
   cursor: not-allowed;
   transform: none;
   box-shadow: none;
-  background: color-mix(in srgb, var(--brand) 55%, var(--canvas));
+}
+.btn[aria-busy="true"] {
+  cursor: progress;
+  transform: none;
+  box-shadow: none;
 }
 
 .btn--hero {
@@ -643,7 +679,10 @@ p { margin: 0; }
 
 .btn--ghost {
   background: var(--glass-flat);
-  border: 1px solid color-mix(in srgb, var(--emphasis-ink) 30%, transparent);
+  /* Derived from the text rather than named separately, so the frame and the
+     label can never end up different colours — which is what happened: a teal
+     border around amber type, on the same button. */
+  border: 1px solid color-mix(in srgb, currentColor 28%, transparent);
   color: var(--emphasis-ink);
   font-weight: 500;
   letter-spacing: 0;
@@ -829,7 +868,7 @@ a.icon-btn, button.icon-btn, .icon-btn {
   content: '';
   position: absolute;
   inset: 0;
-  border-radius: 13px;
+  border-radius: 12px;
   box-shadow: inset 0 0 0 1px rgba(253, 255, 252, .5);
 }
 
@@ -841,7 +880,7 @@ input[type="range"] { accent-color: var(--brand); width: 100%; }
 
 .switch {
   width: 62px; height: 36px; flex: none;
-  border: none; border-radius: 99px;
+  border: none; border-radius: 999px;
   background: var(--line);
   position: relative; cursor: pointer;
   box-shadow: inset 0 1px 3px rgba(0, 0, 0, .12);
@@ -863,7 +902,7 @@ input[type="range"] { accent-color: var(--brand); width: 100%; }
   display: inline-flex;
   gap: 6px;
   padding: 5px;
-  border-radius: 99px;
+  border-radius: 999px;
   background: var(--glass);
   border: 1px solid var(--glass-line);
   box-shadow: var(--glass-shadow);
@@ -877,7 +916,7 @@ input[type="range"] { accent-color: var(--brand); width: 100%; }
 .seg button, .seg a {
   padding: 11px clamp(14px, 1.6vw, 26px);
   border: none;
-  border-radius: 99px;
+  border-radius: 999px;
   background: none;
   color: var(--ink-3);
   font-size: 14px;
@@ -897,7 +936,7 @@ input[type="range"] { accent-color: var(--brand); width: 100%; }
   align-items: center;
   gap: 8px;
   padding: 9px 16px;
-  border-radius: 99px;
+  border-radius: 999px;
   background: color-mix(in srgb, var(--synced) 14%, transparent);
   border: 1px solid color-mix(in srgb, var(--synced) 34%, transparent);
   font-size: 12px;
@@ -958,20 +997,45 @@ input[type="range"] { accent-color: var(--brand); width: 100%; }
 
 .rows { display: flex; flex-direction: column; gap: 11px; }
 
+/* ---------- a queue is a list, not a stack of cards ----------
+
+   Each row was a filled, bordered, 22px-rounded surface with its own shadow,
+   sitting inside a panel that was already all of those things. Boxes inside
+   boxes: the chrome repeated ten times down the page, every row weighed exactly
+   as much as every other, and the shadows piled up into a texture rather than
+   depth. The panel is the object. The rows are its contents.
+
+   So the rows give up their frames and share one surface, parted by a hairline
+   that stops short of the edges — the way a table rules between rows and not
+   around them. What is left to carry meaning is the type and the space, which
+   is what should have been carrying it. */
 .row {
   display: flex;
   align-items: center;
   gap: 16px;
-  padding: 17px 22px;
-  border-radius: 22px;
-  background: var(--glass-flat);
-  border: 1px solid var(--edge);
-  box-shadow: var(--shadow-row);
+  padding: 15px 18px;
+  border-radius: var(--r-sm);
+  background: none;
+  border: 0;
+  box-shadow: none;
+  position: relative;
   animation: row-in .4s var(--ease) backwards;
   animation-delay: calc(var(--i, 0) * 24ms);
-  transition: transform var(--fast) var(--ease), background var(--fast);
+  transition: background var(--fast) var(--ease);
 }
-.row:hover { transform: translateX(-3px); background: var(--field-lit); }
+/* Between the rows, not around each one. */
+.row + .row::before {
+  content: '';
+  position: absolute;
+  left: 18px;
+  right: 18px;
+  top: -1px;
+  border-top: 1px solid var(--hairline);
+}
+/* Hover moves the light, not the row. A ten-item list that shuffles sideways
+   under the pointer reads as nervous; a list that lights up reads as alive. */
+.row:hover { background: var(--field-lit); }
+.row:hover::before, .row:hover + .row::before { border-color: transparent; }
 .row__ticket { width: 66px; flex: none; font-size: 20px; font-weight: 600; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
 .row__main { flex: 1; min-width: 0; }
 .row__name {
@@ -1047,9 +1111,24 @@ input[type="range"] { accent-color: var(--brand); width: 100%; }
   .row__tools .icon-btn:active { transform: scale(.92); background: var(--field-lit); }
 }
 
-.row--next { border-color: color-mix(in srgb, var(--brand) 50%, transparent); }
-.row--me { background: var(--emphasis); border-color: var(--emphasis); color: var(--on-emphasis); }
-.row--me:hover { background: var(--emphasis); transform: none; }
+/* The one being served next is the only row that matters at a glance, so it is
+   the only one given a mark: a brand rule down its leading edge. A border all
+   the way round would put its frame back and start the pile again. */
+.row--next {
+  background: color-mix(in srgb, var(--brand) 7%, transparent);
+}
+.row--next::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 8px;
+  bottom: 8px;
+  width: 3px;
+  border-radius: 0 var(--r-xs) var(--r-xs) 0;
+  background: var(--brand);
+}
+.row--me { background: var(--emphasis); color: var(--on-emphasis); }
+.row--me:hover { background: var(--emphasis); }
 .row--me .row__meta { color: color-mix(in srgb, var(--on-emphasis) 78%, transparent); }
 
 .skeleton {
@@ -1062,10 +1141,39 @@ input[type="range"] { accent-color: var(--brand); width: 100%; }
 
 /* ---------- stats ---------- */
 
-.stats { display: grid; gap: 20px; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
-.stat { padding: 22px 26px; border-radius: 26px; background: var(--glass-flat); border: 1px solid var(--edge); }
-.stat b { display: block; margin-top: 4px; font-size: 32px; font-weight: 600; letter-spacing: -.03em; font-variant-numeric: tabular-nums; }
+/* ---------- figures, not objects ----------
+
+   Every statistic used to be a filled, bordered, 24px-rounded box, and four or
+   five of them sat in a row. That is the shape every dashboard on the internet
+   has, and it is decoration doing a job that hierarchy should do: the boxes all
+   weigh the same, so nothing on the page is more important than anything else,
+   and the eye has nowhere to land.
+
+   A number with a label above it is already a legible unit — it does not need a
+   container to prove it. One hairline separates the figures from the work above
+   them, generous space separates them from each other, and the numerals carry
+   the weight. The page gets quieter and, because the boxes are gone, the things
+   that ARE boxes — the serving panel, the waiting list — start meaning
+   something again. */
+.stats {
+  display: grid;
+  gap: 22px 40px;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  padding-top: 22px;
+  border-top: 1px solid var(--hairline);
+}
+.stat { padding: 0; background: none; border: 0; border-radius: 0; }
+.stat b {
+  display: block;
+  margin-top: 6px;
+  font-size: 34px;
+  font-weight: 600;
+  letter-spacing: -.035em;
+  line-height: 1.05;
+  font-variant-numeric: tabular-nums;
+}
 .stat--wide { grid-column: span 2; min-width: 0; }
+/* The one figure that is genuinely the headline gets the room, not a frame. */
 .stat--wide b { font-size: clamp(56px, 7vw, 96px); letter-spacing: -.055em; line-height: .95; }
 
 /* One numeral scale, used by every screen that shows a queue number. */
@@ -1171,8 +1279,60 @@ input[type="range"] { accent-color: var(--brand); width: 100%; }
 .serving-head > :last-child { flex: 0 0 auto; }
 /* A long customer name must not push the "next" block off its corner. */
 .serving-who { overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
-.serving-now { font-size: clamp(56px, 8.5vw, 152px); white-space: nowrap; }
-.serving-now--idle { font-size: clamp(40px, 5vw, 64px); color: var(--ink-4); letter-spacing: 0; }
+.serving-now { font-size: clamp(56px, 8.5vw, 152px); white-space: nowrap; line-height: 1.02; }
+
+/* Nobody is being served yet.
+ *
+ * This drew the em-dash at up to 64px, which at that scale is not a dash — it
+ * is a short grey bar sitting exactly where a number belongs, and it reads as a
+ * skeleton that never finishes loading. The panel already says what to do
+ * underneath it ("press next customer to begin"), so the mark does not need to
+ * explain anything; it only needs to hold the slot without pretending to be a
+ * value. Small, muted, and unmistakably not a number. */
+.serving-now--idle {
+  font-size: 30px;
+  color: var(--ink-4);
+  letter-spacing: 0;
+  opacity: .55;
+}
+/* ---------- page headers ----------
+
+   Title on the left, actions on the right, and the two aligned along the
+   bottom rather than centred against each other. Centring made the buttons
+   float against the eyebrow while the title sat below them, and any button
+   whose label wrapped to two lines grew taller than its neighbour — so a row
+   of two actions had two different heights and no shared edge with anything.
+
+   Aligning to the end gives them one baseline with the heading, and stretching
+   them within their own row makes them match each other whatever the
+   translation does to the words. */
+.between > .btn-row { align-items: stretch; }
+.between > .btn-row > .btn { display: inline-flex; align-items: center; justify-content: center; }
+
+/* Side by side only where there is room for it. `flex: none` keeps the actions
+   from being squeezed out of shape next to a long business name — and on a
+   phone, where the row has already wrapped onto its own line, it is exactly
+   what stops two buttons fitting: they refuse to narrow and push the page
+   sideways. Measured at 390px, a 21px overflow. */
+@media (min-width: 768px) {
+  .between:has(> .btn-row) { align-items: flex-end; }
+  .between > .btn-row { flex: none; }
+}
+
+/* Any display numeral with nothing to display. Same reasoning as the panel
+   above: at 96px a dash is not punctuation, it is a placeholder bar. */
+.numeral--idle {
+  font-size: 34px !important;
+  letter-spacing: 0 !important;
+  color: var(--ink-4);
+  opacity: .55;
+  line-height: 1.6;
+}
+
+/* The slot keeps its height either way, so the panel does not jump when the
+   first customer is called. */
+.serving-now { min-height: 1.02em; }
+.serving-now--idle { min-height: clamp(56px, 8.5vw, 152px); display: flex; align-items: center; }
 .serving-next { font-size: clamp(34px, 3.9vw, 56px); font-weight: 600; letter-spacing: -.04em; line-height: 1; color: var(--brand-ink); font-variant-numeric: tabular-nums; white-space: nowrap; }
 
 .side-panel { display: flex; flex-direction: column; min-height: 0; padding: clamp(22px, 2.4vw, 32px) clamp(20px, 2.2vw, 30px); border-radius: 36px; }
@@ -1528,7 +1688,7 @@ html.retint, html.retint *, html.retint *::before, html.retint *::after {
   gap: 2px;
   width: min(calc(100vw - 32px), 400px);
   padding: 4px;
-  border-radius: 21px;
+  border-radius: 22px;
   background: var(--nav-glass);
   border: 1px solid var(--nav-edge);
   backdrop-filter: blur(22px) saturate(1.6);
@@ -1546,7 +1706,7 @@ html.retint, html.retint *, html.retint *::before, html.retint *::after {
   justify-content: center;
   gap: 2px;
   padding: 5px 3px 4px;
-  border-radius: 17px;
+  border-radius: 18px;
   color: var(--ink-4);
   font-size: 10px;
   font-weight: 500;
@@ -1575,7 +1735,7 @@ html.retint, html.retint *, html.retint *::before, html.retint *::after {
   place-items: center;
   border: none;
   background: none;
-  border-radius: 13px;
+  border-radius: 12px;
   color: var(--ink-4);
   cursor: pointer;
   transition: color var(--fast) var(--ease), background var(--fast) var(--ease);
@@ -1670,7 +1830,7 @@ html.retint, html.retint *, html.retint *::before, html.retint *::after {
     max-width: 100%;
   }
   .topbar__id .hint { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .logo { width: 42px; height: 42px; border-radius: 13px; }
+  .logo { width: 42px; height: 42px; border-radius: 12px; }
 
   /* On a phone the "next" block reads better stacked under the current number
      than pinned to a right edge that no longer exists. */
@@ -1757,14 +1917,14 @@ html.retint, html.retint *, html.retint *::before, html.retint *::after {
 .palette__btn {
   flex: none;
   padding: 3px 9px;
-  border-radius: 7px;
+  border-radius: 6px;
   background: var(--p-primary);
   color: var(--p-on-primary);
   font-size: 9px;
   font-weight: 700;
   letter-spacing: .04em;
 }
-.palette__badge { width: 26px; height: 10px; border-radius: 99px; background: color-mix(in srgb, var(--p-accent) 30%, transparent); border: 1px solid color-mix(in srgb, var(--p-accent) 55%, transparent); }
+.palette__badge { width: 26px; height: 10px; border-radius: 999px; background: color-mix(in srgb, var(--p-accent) 30%, transparent); border: 1px solid color-mix(in srgb, var(--p-accent) 55%, transparent); }
 
 .palette__meta { display: flex; flex-direction: column; gap: 5px; padding: 0 4px; }
 .palette__name { font-size: 14px; font-weight: 600; display: flex; align-items: center; gap: 7px; }
@@ -2543,12 +2703,17 @@ html.retint, html.retint *, html.retint *::before, html.retint *::after {
    So the motion moved off the text and under it. The headline is painted the
    ordinary way and cannot be anything but legible; the line is a pseudo-element
    that owes it nothing. */
-.stage--entry h1 {
+/* The hero only. This was scoped to every heading on the entry screens, so the
+   rule turned up under "Welcome back" on the sign-in form — where it is not an
+   accent but a stray divider, running the full width of the column while the
+   words it underlines are barely half of it. The landing headline is the one
+   place it means anything. */
+.hero-title {
   position: relative;
   display: inline-block;
   padding-bottom: 6px;
 }
-.stage--entry h1::after {
+.hero-title::after {
   content: '';
   position: absolute;
   left: 0;
@@ -2925,17 +3090,26 @@ html.retint, html.retint *, html.retint *::before, html.retint *::after {
    Sits between the header and the page, in the flow rather than over it: the
    dashboard behind it is fully usable, which is the whole point. Amber rather
    than red — nothing is wrong, there is simply one thing left to do. */
+/* A reminder, sized like one.
+ *
+ * It was wearing the brand at 9% fill and 24% border, which made the loudest
+ * thing on the dashboard a note about email — louder than the page's own
+ * heading, and louder than the button a cashier presses all day. Nothing about
+ * it is urgent: the queue already works, and the address can be confirmed
+ * whenever. So it keeps its colour, at a whisper, and gives the hierarchy back
+ * to the work. */
 .verify-strip {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 12px;
   flex-wrap: wrap;
   margin: 0 auto;
   width: min(1180px, 100% - 32px);
-  padding: 12px 16px;
-  border-radius: 20px;
-  background: color-mix(in srgb, var(--brand) 9%, var(--glass-quiet));
-  border: 1px solid color-mix(in srgb, var(--brand) 24%, transparent);
+  padding: 10px 14px;
+  border-radius: var(--r-md);
+  background: color-mix(in srgb, var(--brand) 4%, var(--glass-quiet));
+  border: 1px solid color-mix(in srgb, var(--brand) 13%, transparent);
+  font-size: 13px;
   animation: verify-in var(--mid) both;
 }
 @keyframes verify-in {
