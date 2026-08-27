@@ -10,7 +10,7 @@ import { presetById, deriveFromPrimary, completeBranding, contrast, readableOn, 
 import { enableAlerts, announce, holdScreenAwake, permission as notificationPermission } from './notify.js';
 import { buzz } from './haptics.js';
 import { t, toggleLanguage } from './i18n.js';
-import { landingView, signUpView, signInView, forgotView, resetView } from './views/auth.js';
+import { landingView, reconnectView, signUpView, signInView, forgotView, resetView } from './views/auth.js';
 /* Only the entry screens are part of the first download. The console, the brand
    studio, the printed sign, the display and the customer page are each fetched
    the first time a route needs them — someone who opens the landing page and
@@ -211,6 +211,21 @@ async function resolveRoute() {
      the door of a product that is already theirs. */
 
   if (!session.isSignedIn()) {
+    /* Not knowing is not the same as knowing there is nobody.
+     *
+     * When boot cannot reach our own API it ends in `error`, and this used to
+     * treat that exactly like a signed-out visitor — so an owner whose refresh
+     * landed on a cold server, or a bad minute of network, watched their desk
+     * turn into the marketing page and stay there. The landing page is a front
+     * door for a business that has not signed up yet; it is not what you show
+     * somebody whose session you simply failed to look up.
+     *
+     * The auth screens are still reachable, because somebody who deliberately
+     * asked to sign in should be allowed to try even while the service is
+     * unhappy. Everything else waits, and offers to try again. */
+    if (session.state.phase === 'error') {
+      return { kind: AUTH_ROUTES[route.name] ? route.name : 'reconnect' };
+    }
     return { kind: AUTH_ROUTES[route.name] ? route.name : 'landing' };
   }
 
@@ -308,6 +323,7 @@ function consoleContext() {
 function screenFor(resolved) {
   switch (resolved.kind) {
     case 'landing': return landingView(ui);
+    case 'reconnect': return reconnectView(ui);
     case 'signup': case 'signin': case 'forgot': case 'reset':
       return AUTH_ROUTES[resolved.kind](ui);
     case 'setup': return screens.setupView({ ...ui, services: store.owner.services }, store.owner.business, joinBase());
@@ -361,7 +377,7 @@ let paintedBrand = '';
  * is derived from the five seeds with color-mix at :root. A seed overridden
  * further down the tree would not recompute anything — the derived values are
  * already computed by then — so the scope has to live where the derivation does. */
-const ENTRY_KINDS = new Set(['landing', 'signup', 'signin', 'forgot', 'reset']);
+const ENTRY_KINDS = new Set(['landing', 'reconnect', 'signup', 'signin', 'forgot', 'reset']);
 
 function applyScope(resolved) {
   const scope = ENTRY_KINDS.has(resolved.kind) ? 'entry' : 'app';
@@ -377,6 +393,11 @@ function applyScope(resolved) {
 let googleWarmed = false;
 function warmGoogleFor(resolved) {
   if (googleWarmed || !ENTRY_KINDS.has(resolved.kind)) return;
+  /* The server answers /api/config from memory and says 'checking' when it has
+     not yet asked Google. Asking now, once the screen is up, is what turns that
+     into a button — and it costs the first paint nothing, which is the whole
+     reason it is not in /api/config any more. */
+  session.confirmGoogle();
   if (!session.googleAuthAvailable()) return;
   googleWarmed = true;
   const warm = () => session.warmGoogle();
@@ -758,19 +779,28 @@ function forgetTenant() {
    that reads true both times would call it no change, leaving the first
    account's desk on screen for the second. */
 let lastUserId = null;
+let lastPhase = null;
 let sawSession = false;
 let reroutePending = false;
 
 session.onSessionChange(() => {
   const userId = session.userId();
-  const changed = sawSession && userId !== lastUserId;
+  const phase = session.state.phase;
+  /* Who is signed in decides which desk to show. Whether we know decides
+     whether to show a desk at all — boot giving up moves the phase to `error`
+     without moving the user, and the screen for not knowing is a different
+     screen from the one for nobody. Tracking only the user left the previous
+     route standing, which on that path was the landing page. */
+  const changed = sawSession && (userId !== lastUserId || phase !== lastPhase);
   const previous = lastUserId;
+  const identityChanged = sawSession && userId !== lastUserId;
   lastUserId = userId;
+  lastPhase = phase;
   sawSession = true;
 
   /* Anything the previous account left behind goes before the next screen is
      resolved, so nothing of theirs can be painted while B's own data loads. */
-  if (changed && previous !== null) forgetTenant();
+  if (identityChanged && previous !== null) forgetTenant();
 
   if (!booted || !changed) return render();
   // Several emits can land in one tick; one re-resolve answers all of them.
@@ -1109,6 +1139,15 @@ const actions = {
       if (!error?.cancelled) ui.auth.errors = { form: error.message };
       render();
     }
+  },
+  /* Boot gave up without an answer, and the person has asked for another go.
+     A reload is the honest retry: everything boot does happens on load, and
+     re-running half of it by hand would be a second, subtly different boot. */
+  async 'retry-boot'() {
+    if (ui.busy) return;
+    ui.busy = true;
+    render();
+    location.reload();
   },
   'toggle-password'() { ui.showPassword = !ui.showPassword; render(); },
   /* Signing out is local work: drop the session and the cached tenant state and

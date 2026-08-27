@@ -114,6 +114,37 @@ function shell(inner) {
   </div>`;
 }
 
+/**
+ * Shown when boot could not find out whether anybody is signed in.
+ *
+ * The landing page used to stand in for this, which told an owner whose refresh
+ * hit a cold server that they had been signed out — they had not, and the page
+ * offering them a free trial was the wrong answer to a network problem. This
+ * says the true thing and offers the only useful action.
+ */
+export function reconnectView(ui) {
+  return shell(`
+    <div class="stage stage--entry">
+      <div class="reconnect">
+        <div class="reconnect__pulse" aria-hidden="true"><span></span><span></span><span></span></div>
+        <h1 class="serif">${t('boot.unreachableTitle')}</h1>
+        <p class="lead" style="max-width:44ch">${t('boot.unreachableBody')}</p>
+        ${sessionState.backendError
+          ? `<p class="hint" style="max-width:44ch">${esc(sessionState.backendError)}</p>` : ''}
+        <div class="btn-row" style="max-width:340px">
+          <button type="button" class="btn entry-cta entry-cta--primary"
+                  data-action="retry-boot" ${ui?.busy ? 'disabled aria-busy="true"' : ''}>
+            ${ui?.busy ? `<span class="spinner"></span>` : ''}
+            <span>${ui?.busy ? t('boot.retrying') : t('boot.retry')}</span>
+          </button>
+        </div>
+        <p class="hint">
+          <a class="btn--link" href="#/signin">${t('auth.signIn')}</a>
+        </p>
+      </div>
+    </div>`);
+}
+
 export function landingView(ui) {
   return shell(`
     <div class="stage stage--entry">

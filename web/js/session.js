@@ -91,6 +91,26 @@ export const googleAuthReason = () => (runtime?.googleAuthReason || '');
 /** Fetches the Google SDK ahead of a click, so the popup opens inside the gesture. */
 export const warmGoogle = () => firebase.warmGoogle();
 
+/**
+ * Asks whether Google will have us, after the interface is already on screen.
+ *
+ * /api/config used to carry this answer, which meant the first paint waited on
+ * a round trip to identitytoolkit — and on a cold start, on a boot that gives up
+ * and renders without it. The answer is worth having and worth nobody waiting
+ * for, so it arrives late and the button appears when it does.
+ */
+export async function confirmGoogle() {
+  if (!runtime || runtime.googleAuthReason !== 'checking') return;
+  try {
+    const response = await fetch('/api/config/google');
+    if (!response.ok) return;
+    const answer = await response.json();
+    if (runtime.googleAuth === answer.googleAuth && runtime.googleAuthReason === answer.googleAuthReason) return;
+    runtime = { ...runtime, ...answer };
+    emit();   // the screens read availability through us, so this repaints them
+  } catch { /* the button stays as it is; nothing here is worth an error */ }
+}
+
 /** Set when a provider sent us back with a refusal instead of a session. */
 export let oauthError = '';
 
@@ -385,6 +405,7 @@ export async function signIn({ email, password }) {
  */
 export function signOut() {
   clearTimeout(renewTimer);
+  verificationSent = false;
   state.session = null;
   state.user = null;
   state.businesses = [];
@@ -489,10 +510,40 @@ export function forgetAccount() {
   state.needsVerification = false;
 }
 
+/* One letter per session, whatever brought the account here.
+ *
+ * The password sign-up sent its own and Google's did not, so an account that
+ * arrived through Google with an unconfirmed address never got asked to confirm
+ * it — and a confirmed address is what binds staff invitations and links an
+ * older account to a newer one. Doing it here rather than in either sign-in
+ * path means it happens once, for every route in, including the ones added
+ * later: this is the single place the app learns whether an address is
+ * confirmed.
+ *
+ * Most Google accounts arrive already confirmed, because Google has done
+ * exactly this check and says so in the token — nothing is sent then, and
+ * sending anyway would be asking somebody to prove something we have just been
+ * told. The letter goes to the accounts that genuinely have not confirmed. */
+let verificationSent = false;
+
+async function offerVerification() {
+  if (verificationSent || !state.needsVerification || !accessToken()) return;
+  verificationSent = true;
+  try {
+    await firebase.sendVerification(accessToken());
+  } catch {
+    /* Nobody is held at the door for this — the queue is already theirs and the
+       reminder lives in a strip inside the dashboard. Let it fail quietly and
+       let them press "send again" if they want it. */
+    verificationSent = false;
+  }
+}
+
 /** Called after any sign-in: our API supplies the profile and businesses. */
 export function setAccount({ user, businesses }) {
   state.user = user;
   state.businesses = businesses;
   state.needsVerification = user ? user.emailVerified === false : false;
   emit();
+  offerVerification();
 }

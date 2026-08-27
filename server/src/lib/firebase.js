@@ -148,12 +148,34 @@ async function probeGoogle() {
  * the identical code offered it locally. Only the result is cached now, so the
  * worst case is one extra call per cold start rather than a permanent no.
  */
-export async function googleSignInReady() {
-  if (String(process.env.FIREBASE_GOOGLE_AUTH || '').toLowerCase() === 'false') return false;
-  if (!config.firebase.apiKey) return false;
+const forcedOff = () => String(process.env.FIREBASE_GOOGLE_AUTH || '').toLowerCase() === 'false';
+const probeIsFresh = () => googleProbe.checkedAt > 0 && Date.now() - googleProbe.checkedAt < PROBE_TTL_MS;
 
-  const fresh = googleProbe.checkedAt > 0 && Date.now() - googleProbe.checkedAt < PROBE_TTL_MS;
-  if (fresh) return googleProbe.ready;
+/**
+ * What is already known about Google, without asking anybody.
+ *
+ * /api/config is the first request the browser makes and the one the whole
+ * interface waits behind, so nothing in it may depend on a third party being
+ * quick. Asking Google inline put a round trip to identitytoolkit in front of
+ * the first paint — and on a cold serverless start, in front of a boot that
+ * gives up and renders after ten seconds.
+ *
+ * So the fast path answers from memory and says 'checking' when it does not yet
+ * know. The browser asks the endpoint below for the real answer afterwards,
+ * where waiting costs nobody anything.
+ */
+export function googleSignInCached() {
+  if (forcedOff()) return { ready: false, reason: 'turned_off' };
+  if (!config.firebase.apiKey) return { ready: false, reason: 'provider_disabled' };
+  if (probeIsFresh()) return { ready: googleProbe.ready, reason: googleProbe.reason };
+  return { ready: false, reason: 'checking' };
+}
+
+/** The real answer, asking Google if the cached one is stale or missing. */
+export async function googleSignInReady() {
+  if (forcedOff()) return false;
+  if (!config.firebase.apiKey) return false;
+  if (probeIsFresh()) return googleProbe.ready;
 
   const result = await probeGoogle();
   googleProbe = { ...result, checkedAt: Date.now(), running: false };
@@ -174,7 +196,4 @@ export async function googleSignInReady() {
  *                              route the round trip through
  *   probe_failed               Google could not be reached to find out
  */
-export const googleSignInReason = () =>
-  (String(process.env.FIREBASE_GOOGLE_AUTH || '').toLowerCase() === 'false'
-    ? 'turned_off'
-    : googleProbe.reason);
+export const googleSignInReason = () => (forcedOff() ? 'turned_off' : googleProbe.reason);

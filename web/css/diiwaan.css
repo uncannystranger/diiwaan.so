@@ -2431,6 +2431,37 @@ html.retint, html.retint *, html.retint *::before, html.retint *::after {
   to   { opacity: 1; transform: none; }
 }
 
+/* ---------- the screen for not knowing ----------
+
+   Three dots reaching outward and fading, the shape of something trying to get
+   through. It is the only motion on a screen whose whole message is "wait a
+   moment", and it stops entirely for anyone who asked for less movement. */
+.reconnect {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: 16px;
+  min-height: 60vh;
+  padding: 24px;
+}
+.reconnect h1 { margin: 0; }
+.reconnect__pulse { display: flex; gap: 8px; margin-bottom: 4px; }
+.reconnect__pulse span {
+  width: 9px; height: 9px; border-radius: 50%;
+  background: var(--brand);
+  opacity: .3;
+  animation: reconnect-reach 1.4s ease-in-out infinite;
+}
+.reconnect__pulse span:nth-child(2) { animation-delay: .16s; }
+.reconnect__pulse span:nth-child(3) { animation-delay: .32s; }
+
+@keyframes reconnect-reach {
+  0%, 100% { opacity: .28; transform: translateY(0) scale(1); }
+  40%      { opacity: .95; transform: translateY(-5px) scale(1.25); }
+}
+
 /* ---------- the queue, moving ----------
 
    Five markers standing for the people in front. Every three seconds the one at
@@ -2589,7 +2620,8 @@ html.retint, html.retint *, html.retint *::before, html.retint *::after {
   .stage--entry .btn-row, .stage--entry .row-flex, .stage--entry .hero-card,
   .hero-ticket, .hero-ticket__logo,
   .hero-queue__dot, .stage--entry .hero-card::before,
-  .stage--entry h1::after { animation: none; }
+  .stage--entry h1::after, .reconnect__pulse span { animation: none; }
+  .reconnect__pulse span { opacity: .55; transform: none; }
   /* Drawn already, rather than drawing itself. */
   .stage--entry h1::after { transform: scaleX(1); opacity: 1; }
   /* The queue still has to say "five people waiting", just without moving. */

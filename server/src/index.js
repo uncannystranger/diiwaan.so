@@ -7,7 +7,7 @@ import rateLimit from 'express-rate-limit';
 import cookieParser from 'cookie-parser';
 import path from 'node:path';
 import { config, assertConfig, ROOT } from './config.js';
-import { googleSignInReady, googleSignInReason } from './lib/firebase.js';
+import { googleSignInReady, googleSignInReason, googleSignInCached } from './lib/firebase.js';
 import { subscriberCounts } from './services/realtime.js';
 import { connect, disconnect } from './db.js';
 import { withUser } from './middleware/auth.js';
@@ -143,9 +143,20 @@ export async function createApp() {
      published by Firebase itself and identifies the project rather than
      authorising anything — access is decided by Firebase's own rules and by this
      server verifying the signed token. No server credential is ever included. */
-  app.get('/api/config', async (req, res) => {
+  /* The one answer that is allowed to be slow, asked for separately.
+   *
+   * Whether Google will have us is a question for Google, and the browser is
+   * perfectly able to wait for it after the interface is on screen. It is not
+   * able to wait for it before — /api/config is what boot blocks on. */
+  app.get('/api/config/google', async (req, res) => {
+    res.setHeader('Cache-Control', 'no-store');
+    res.json({ googleAuth: await googleSignInReady(), googleAuthReason: googleSignInReason() });
+  });
+
+  app.get('/api/config', (req, res) => {
+    const google = googleSignInCached();
     res.json({
-      googleAuth: await googleSignInReady(),
+      googleAuth: google.ready,
       /* Always reported, including in production.
        *
        * It used to be withheld there, on the reasoning that a customer signing
@@ -160,7 +171,7 @@ export async function createApp() {
        * no_auth_domain, probe_failed — and none of them is a secret. The screen
        * still shows nothing in production; that decision moved to the view,
        * where it belongs. */
-      googleAuthReason: googleSignInReason(),
+      googleAuthReason: google.reason,
       firebase: config.firebase.projectId && config.firebase.apiKey
         ? {
             projectId: config.firebase.projectId,

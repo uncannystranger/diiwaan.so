@@ -70,6 +70,41 @@
       "author": { "@id": "https://diiwaan-so.vercel.app/#author" }
     },
     {
+      "@type": "Organization",
+      "@id": "https://diiwaan-so.vercel.app/#org",
+      "name": "Diiwaan",
+      "url": "https://diiwaan-so.vercel.app/",
+      "logo": "https://diiwaan-so.vercel.app/icon-512.png",
+      "areaServed": "SO",
+      "founder": { "@id": "https://diiwaan-so.vercel.app/#author" }
+    },
+    {
+      "@type": "FAQPage",
+      "@id": "https://diiwaan-so.vercel.app/#faq",
+      "mainEntity": [
+        {
+          "@type": "Question",
+          "name": "Do customers need to download an app to join the queue?",
+          "acceptedAnswer": { "@type": "Answer", "text": "No. A customer scans the printed QR code with their phone camera, types their name, and takes a number. There is no app to install and no account to create." }
+        },
+        {
+          "@type": "Question",
+          "name": "What does it cost to run a queue with Diiwaan?",
+          "acceptedAnswer": { "@type": "Answer", "text": "Starting is free. One business can run one queue with unlimited customers." }
+        },
+        {
+          "@type": "Question",
+          "name": "Does it keep working when the internet drops?",
+          "acceptedAnswer": { "@type": "Answer", "text": "Yes. A customer's place is held on their device and the join completes on its own once the connection returns, so a weak signal does not cost anybody their turn." }
+        },
+        {
+          "@type": "Question",
+          "name": "Is Diiwaan available in Somali?",
+          "acceptedAnswer": { "@type": "Answer", "text": "Yes. The whole interface is in Somali and English, and either can be chosen at any time." }
+        }
+      ]
+    },
+    {
       "@type": "Person",
       "@id": "https://diiwaan-so.vercel.app/#author",
       "name": "uncannystranger",
@@ -82,7 +117,22 @@
 <!-- The starting value only: theme.js replaces this with the resolved
      --canvas token as soon as the stylesheet lands, so a branded queue tints
      the browser chrome too. This literal is the house --p-base. -->
-<meta name="theme-color" content="#FBFCFA">
+<!-- The starting values only, one per scheme; theme.js replaces the active one
+     with the resolved --canvas token as soon as the stylesheet lands, so a
+     branded queue tints the browser chrome too. -->
+<meta name="theme-color" content="#FBFCFA" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#04121D" media="(prefers-color-scheme: dark)">
+<link rel="apple-touch-icon" href="/icon-192.png">
+<meta name="apple-mobile-web-app-title" content="Diiwaan">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="format-detection" content="telephone=no">
+
+<!-- Google's own handler and loader are on the sign-in path. Warming the
+     connection here costs one DNS lookup and takes a noticeable bite out of how
+     long the button appears to think about it. -->
+<link rel="preconnect" href="https://apis.google.com" crossorigin>
+<link rel="preconnect" href="https://diiwaan-8ea89.firebaseapp.com" crossorigin>
+<link rel="dns-prefetch" href="https://accounts.google.com">
 <link rel="manifest" href="/manifest.webmanifest">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -118,6 +168,31 @@ body { margin: 0; font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
 </head>
 <body>
 <main id="app"><div class="boot"><svg viewBox="0 0 24 24" width="38" height="38" aria-hidden="true"><rect x="3" y="6" width="11" height="2.6" rx="1.3" fill="currentColor" opacity=".8"/><rect x="3" y="10.7" width="8" height="2.6" rx="1.3" fill="currentColor" opacity=".5"/><rect x="3" y="15.4" width="5" height="2.6" rx="1.3" fill="currentColor" opacity=".3"/><circle cx="18" cy="12" r="3" fill="#E0912F"/></svg><p class="boot__slow">Waa la soo dejinayaa… · Still loading — the connection is slow.</p></div></main>
+<!-- What is here when the script is not.
+
+     A single-page app hands a crawler an empty document and a spinner, and
+     hands somebody on a locked-down browser the same. Both deserve the actual
+     sentences. This is the page's own content, not a "please enable
+     JavaScript" apology — it says what Diiwaan is, in both languages, and
+     links to the two things a visitor would want next. -->
+<noscript>
+  <div style="max-width:44rem;margin:0 auto;padding:12vh 24px 8vh;font-family:system-ui,-apple-system,'Segoe UI',sans-serif;line-height:1.6">
+    <h1 style="font-size:2rem;line-height:1.2;margin:0 0 .6em">Diiwaan — a queue your customers can join by scanning</h1>
+    <p style="opacity:.8">Print one QR code and put it on the counter. A customer scans it, types their name, and takes a number — no app to install, no account to create. They wait wherever they like and watch their place from their phone.</p>
+    <p style="opacity:.8"><strong>Maareynta safka ganacsiyada Soomaaliyeed.</strong> Samee akoonkaaga, magacaaga iyo astaantaada saar, hal QR daabac. Macaamiishaadu way iskaan gareeyaan, lambar bay qaataan, wayna fadhiistaan — app la’aan, akoon la’aan.</p>
+    <h2 style="font-size:1.1rem;margin:2em 0 .4em">What it does</h2>
+    <ul style="opacity:.8">
+      <li>Customers join by scanning — no app, no account</li>
+      <li>Free to start, with unlimited customers on one queue</li>
+      <li>Keeps working on a weak connection and catches up on its own</li>
+      <li>Your own colours, logo and printed sign</li>
+      <li>Somali and English throughout</li>
+    </ul>
+    <p style="margin-top:2em"><strong>Diiwaan needs JavaScript to run the queue itself.</strong> Turn it on, or open the page in another browser, and the desk loads straight away.</p>
+    <p style="opacity:.6;font-size:.9rem;margin-top:3em">made with love by
+      <a href="https://instagram.com/uncannystranger" rel="me noopener noreferrer">uncannystranger</a></p>
+  </div>
+</noscript>
 <script type="module" src="/js/app.js"></script>
 </body>
 </html>
