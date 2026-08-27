@@ -2499,35 +2499,43 @@ html.retint, html.retint *, html.retint *::before, html.retint *::after {
   50%      { transform: translate3d(4%, 3%, 0) scale(1.08); opacity: .68; }
 }
 
-/* The headline settles, then a single pass of light crosses it — once, on
-   arrival, never again. A loop here would turn a first impression into a tic.
+/* The headline settles, and a line of brand colour draws itself underneath —
+   left to right, once, on arrival.
 
-   Behind @supports because painting text from a gradient means making the text
-   itself transparent, and a browser that clips the background but ignores the
-   transparent fill would show a headline that is simply not there. Asked for
-   together, so the two either both apply or neither does. The gradient is
-   currentColor everywhere except the travelling band, so even mid-sweep the
-   words are the colour they would have been. */
-@supports ((-webkit-background-clip: text) or (background-clip: text)) {
-  .stage--entry h1 {
-    background-image: linear-gradient(100deg,
-      currentColor 0%, currentColor 38%,
-      color-mix(in srgb, var(--brand) 78%, currentColor) 50%,
-      currentColor 62%, currentColor 100%);
-    background-size: 260% 100%;
-    background-position: 130% 0;
-    background-repeat: no-repeat;
-    -webkit-background-clip: text;
-    background-clip: text;
-    -webkit-text-fill-color: transparent;
-    animation: entry-rise .62s var(--ease) backwards,
-               headline-sweep 1.6s var(--ease) .45s 1 forwards;
-  }
+   It was a band of light travelling through the letters themselves, painted by
+   clipping a gradient to the text. That works right up until the gradient does
+   not cover every glyph, and then the uncovered ones are painted with nothing:
+   half the headline went missing on production, because the animation ends with
+   the image slid off one edge. A first impression is the wrong place for an
+   effect whose failure mode is invisible words.
+
+   So the motion moved off the text and under it. The headline is painted the
+   ordinary way and cannot be anything but legible; the line is a pseudo-element
+   that owes it nothing. */
+.stage--entry h1 {
+  position: relative;
+  display: inline-block;
+  padding-bottom: 6px;
+}
+.stage--entry h1::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  height: 3px;
+  width: 100%;
+  border-radius: 2px;
+  background: linear-gradient(90deg,
+    var(--brand), color-mix(in srgb, var(--p-accent) 80%, var(--brand)));
+  transform: scaleX(0);
+  transform-origin: left center;
+  animation: headline-underline .9s var(--ease) .45s both;
 }
 
-@keyframes headline-sweep {
-  from { background-position: 130% 0; }
-  to   { background-position: -30% 0; }
+@keyframes headline-underline {
+  from { transform: scaleX(0); opacity: .2; }
+  to   { transform: scaleX(1); opacity: 1; }
+}
 }
 
 /* The mark in the customer's ticket, standing in for a business's own logo. */
@@ -2580,11 +2588,10 @@ html.retint, html.retint *, html.retint *::before, html.retint *::after {
   .stage--entry .brand-lockup, .stage--entry h1, .stage--entry .lead,
   .stage--entry .btn-row, .stage--entry .row-flex, .stage--entry .hero-card,
   .hero-ticket, .hero-ticket__logo,
-  .hero-queue__dot, .stage--entry .hero-card::before, .stage--entry h1 { animation: none; }
-  /* The headline is painted from a gradient for the sweep; with the animation
-     off it has to be given its colour back, or it keeps the gradient's midpoint
-     and reads as washed out. */
-  .stage--entry h1 { background-image: none; -webkit-text-fill-color: currentColor; }
+  .hero-queue__dot, .stage--entry .hero-card::before,
+  .stage--entry h1::after { animation: none; }
+  /* Drawn already, rather than drawing itself. */
+  .stage--entry h1::after { transform: scaleX(1); opacity: 1; }
   /* The queue still has to say "five people waiting", just without moving. */
   .hero-queue__dot { opacity: .35; transform: none; }
   .hero-queue__dot:first-child { opacity: .9; }
