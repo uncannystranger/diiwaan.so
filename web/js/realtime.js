@@ -17,6 +17,9 @@ export function connect(path, { onEvent, onStatus, authenticated = false } = {})
   let controller = null;
   let attempt = 0;
   let closed = false;
+  /* Whether the last attempt was refused for the token, so a second refusal can
+     be told from a first. */
+  let unauthorised = false;
   let lastEventId = 0;
   let idleTimer = null;
 
@@ -67,11 +70,37 @@ export function connect(path, { onEvent, onStatus, authenticated = false } = {})
            not exist on the next attempt either. Retrying a permanent answer
            forever burns the customer's battery and the server's budget for
            nothing — the page has already shown them why. */
-        if (response.status === 404 || response.status === 401 || response.status === 403) {
+        if (response.status === 404 || response.status === 403) {
           setStatus('closed');
           closed = true;
           return;
         }
+
+        /* A 401 is the one refusal that might not last.
+         *
+         * The owner stream carries an access token that expires every hour, and
+         * the tab mints a new one a minute before it does — so a reconnect that
+         * lands in that seam is refused for a token that is already being
+         * replaced. Treating that as permanent, which this did, left the desk
+         * with no live updates for the rest of the session and no sign that
+         * anything had stopped; the queue simply went quiet until somebody
+         * reloaded.
+         *
+         * So it is given one more go, after a pause long enough for the renewal
+         * to land. Refused twice with a fresh token, it is a real refusal and
+         * the stream closes as before. */
+        if (response.status === 401) {
+          if (unauthorised) {
+            setStatus('closed');
+            closed = true;
+            return;
+          }
+          unauthorised = true;
+          setStatus('reconnecting');
+          await new Promise(resolve => setTimeout(resolve, 1500));
+          continue;
+        }
+        unauthorised = false;
 
         if (!response.ok || !response.body) throw new Error(`stream ${response.status}`);
 

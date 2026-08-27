@@ -386,24 +386,3 @@ export function resetView(ui) {
     </div>`);
 }
 
-/** Offered after sign-up: the address is unconfirmed but the queue is already open. */
-export function verifyView(ui, email) {
-  return shell(`
-    <div class="stage stage--narrow stage--entry">
-      <div class="stack gap-24" style="flex:1;justify-content:center">
-        <div class="card stack gap-16">
-          <span class="pill pill--warn" style="align-self:flex-start"><i class="dot dot--hollow"></i>${t('auth.oneStep')}</span>
-          <h1>${t('auth.confirmEmail')}</h1>
-          <p class="lead">${esc(t('auth.confirmLead', { email }))}</p>
-          <div class="btn-row">
-            <button class="btn btn--quiet btn--auto" data-action="resend-verification" ${ui.busy ? 'disabled aria-busy="true"' : ''}>
-              ${ui.busy ? `<span class="spinner"></span>&nbsp; ${t('auth.sending')}` : t('auth.sendAgain')}
-            </button>
-            <button class="btn btn--quiet btn--auto" data-action="check-verification">${t('auth.iConfirmed')}</button>
-          </div>
-          <p class="hint" style="line-height:1.55">${t('auth.noEmailHelp')}</p>
-          <button class="btn btn--link" data-action="sign-out">${t('auth.differentAccount')}</button>
-        </div>
-      </div>
-    </div>`);
-}

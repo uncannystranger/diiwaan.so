@@ -231,6 +231,7 @@ export function brandView(ui, ctx) {
                     <div class="row-flex gap-8" style="flex-wrap:nowrap">
                       <input type="color" id="c-${key}" data-brand="${key}" value="${esc(brand[key] || '#000000')}" />
                       <input class="input" data-keep="c-${key}-hex" data-brand-hex="${key}"
+                             aria-label="${label} — ${t('brand.hexValue')}"
                              value="${esc(brand[key] || '')}" style="flex:1;min-height:42px;min-width:0" />
                     </div>
                   </div>`).join('')}

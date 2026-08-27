@@ -52,33 +52,33 @@ export function settingsView(ui, ctx) {
 const businessSection = business => `
   <div class="settings-list">
     <div class="setting">
-      <div><div class="setting__label">${t('set.businessName')}</div><div class="setting__hint">${t('set.businessNameHint')}</div></div>
-      <input type="text" data-keep="set-name" data-business="name" value="${esc(business.name)}" />
+      <div><label class="setting__label" for="set-name">${t('set.businessName')}</label><div class="setting__hint">${t('set.businessNameHint')}</div></div>
+      <input id="set-name" type="text" data-keep="set-name" data-business="name" value="${esc(business.name)}" />
     </div>
     <div class="setting">
-      <div><div class="setting__label">${t('set.category')}</div><div class="setting__hint">${t('set.categoryHint')}</div></div>
-      <input type="text" data-keep="set-category" data-business="category" value="${esc(business.category)}" />
+      <div><label class="setting__label" for="set-category">${t('set.category')}</label><div class="setting__hint">${t('set.categoryHint')}</div></div>
+      <input id="set-category" type="text" data-keep="set-category" data-business="category" value="${esc(business.category)}" />
     </div>
     <div class="setting">
-      <div><div class="setting__label">${t('set.city')}</div><div class="setting__hint">${t('set.cityHint')}</div></div>
-      <input type="text" data-keep="set-city" data-business="city" value="${esc(business.city)}" />
+      <div><label class="setting__label" for="set-city">${t('set.city')}</label><div class="setting__hint">${t('set.cityHint')}</div></div>
+      <input id="set-city" type="text" data-keep="set-city" data-business="city" value="${esc(business.city)}" />
     </div>
     <div class="setting">
-      <div><div class="setting__label">${t('set.address')}</div><div class="setting__hint">${t('set.addressHint')}</div></div>
-      <input type="text" data-keep="set-address" data-business="address" value="${esc(business.address)}" />
+      <div><label class="setting__label" for="set-address">${t('set.address')}</label><div class="setting__hint">${t('set.addressHint')}</div></div>
+      <input id="set-address" type="text" data-keep="set-address" data-business="address" value="${esc(business.address)}" />
     </div>
     <div class="setting">
-      <div><div class="setting__label">${t('common.phone')}</div><div class="setting__hint">${t('set.phoneHint')}</div></div>
-      <input type="tel" data-keep="set-phone" data-business="phone" value="${esc(business.phone)}" />
+      <div><label class="setting__label" for="set-phone">${t('common.phone')}</label><div class="setting__hint">${t('set.phoneHint')}</div></div>
+      <input id="set-phone" type="tel" data-keep="set-phone" data-business="phone" value="${esc(business.phone)}" />
     </div>
     <div class="setting">
-      <div><div class="setting__label">${t('set.contactEmail')}</div><div class="setting__hint">${t('set.contactEmailHint')}</div></div>
-      <input type="email" data-keep="set-email" data-business="email" value="${esc(business.email)}" />
+      <div><label class="setting__label" for="set-email">${t('set.contactEmail')}</label><div class="setting__hint">${t('set.contactEmailHint')}</div></div>
+      <input id="set-email" type="email" data-keep="set-email" data-business="email" value="${esc(business.email)}" />
     </div>
     <div class="setting">
-      <div><div class="setting__label">${t('set.publicLink')}</div><div class="setting__hint">${t('set.publicLinkHint')}</div></div>
+      <div><label class="setting__label" for="set-slug">${t('set.publicLink')}</label><div class="setting__hint">${t('set.publicLinkHint')}</div></div>
       <div class="setting__control">
-        <input type="text" data-keep="set-slug" value="${esc(business.slug)}" />
+        <input id="set-slug" type="text" data-keep="set-slug" value="${esc(business.slug)}" />
         <button class="btn btn--quiet btn--sm btn--auto" data-action="save-slug">${t('set.changeLink')}</button>
       </div>
     </div>
@@ -88,10 +88,10 @@ const queueSection = (business, queue) => `
   <div class="settings-list">
     <div class="setting">
       <div><div class="setting__label">${t('set.queueName')}</div><div class="setting__hint">${t('set.queueNameHint')}</div></div>
-      <input type="text" data-keep="set-queue-name" data-queue="name" value="${esc(queue?.name || business.queueSettings.name)}" />
+      <input id="set-queue-name" type="text" data-keep="set-queue-name" data-queue="name" value="${esc(queue?.name || business.queueSettings.name)}" />
     </div>
     <div class="setting">
-      <div><div class="setting__label">${t('set.prefix')}</div><div class="setting__hint">${esc(t('set.nextNumberIs', { label: queue?.nextLabel || '—' }))}</div></div>
+      <div><label class="setting__label" for="set-user-name">${t('set.prefix')}</label><div class="setting__hint">${esc(t('set.nextNumberIs', { label: queue?.nextLabel || '—' }))}</div></div>
       <div class="prefix-pick">
         ${PREFIXES.map(prefix => `
           <button type="button" data-action="set-prefix" data-value="${prefix}"
@@ -227,7 +227,7 @@ const accountSection = (user, business, role) => `
   <div class="settings-list">
     <div class="setting">
       <div><div class="setting__label">${t('auth.yourName')}</div><div class="setting__hint">${t('set.yourNameHint')}</div></div>
-      <input type="text" data-keep="set-user-name" data-profile="name" value="${esc(user?.name || '')}" />
+      <input id="set-user-name" type="text" data-keep="set-user-name" data-profile="name" value="${esc(user?.name || '')}" />
     </div>
     <div class="setting">
       <div><div class="setting__label">${t('common.email')}</div><div class="setting__hint">${t('set.emailHint')}</div></div>
