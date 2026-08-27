@@ -307,7 +307,7 @@ function consoleContext() {
 
 function screenFor(resolved) {
   switch (resolved.kind) {
-    case 'landing': return landingView();
+    case 'landing': return landingView(ui);
     case 'signup': case 'signin': case 'forgot': case 'reset':
       return AUTH_ROUTES[resolved.kind](ui);
     case 'setup': return screens.setupView({ ...ui, services: store.owner.services }, store.owner.business, joinBase());
@@ -349,7 +349,42 @@ function customerScreen() {
    the same five colours. Previews still carry their own palette locally. */
 let paintedBrand = '';
 
+/* Which palette the page is allowed to use.
+ *
+ *   entry     Diiwaan's own front door — landing, sign in, sign up, reset.
+ *             Navy and white, and nothing else. It is not a business's page and
+ *             it is not the desk, so it borrows neither one's colours.
+ *   app       the dashboard and the customer's queue, where a business's own
+ *             five colours belong.
+ *
+ * Set on the root element rather than a wrapper, because every semantic token
+ * is derived from the five seeds with color-mix at :root. A seed overridden
+ * further down the tree would not recompute anything — the derived values are
+ * already computed by then — so the scope has to live where the derivation does. */
+const ENTRY_KINDS = new Set(['landing', 'signup', 'signin', 'forgot', 'reset']);
+
+function applyScope(resolved) {
+  const scope = ENTRY_KINDS.has(resolved.kind) ? 'entry' : 'app';
+  const root = document.documentElement;
+  if (root.dataset.scope === scope) return;
+  retint(() => { root.dataset.scope = scope; });
+}
+
 function applyBrand(resolved) {
+  /* A business's palette is never painted onto Diiwaan's own front door. */
+  if (ENTRY_KINDS.has(resolved.kind)) {
+    const root = document.documentElement;
+    if (paintedBrand !== null) {
+      paintedBrand = null;
+      retint(() => {
+        root.removeAttribute('style');
+        root.dataset.surface = '';
+        root.dataset.brand = '';
+      });
+    }
+    return;
+  }
+
   const branding = resolved.kind === 'customer'
     ? store.customer.view?.business?.branding
     : store.owner.business?.branding;
@@ -493,6 +528,7 @@ function render() {
   const keep = active?.dataset?.keep;
   const caret = keep && 'selectionStart' in active ? active.selectionStart : null;
 
+  applyScope(resolvedRoute);
   applyCustomerTheme(resolvedRoute);
   applyBrand(resolvedRoute);
   if (resolvedRoute.kind === 'customer') greetArrival();
@@ -646,6 +682,50 @@ function scheduleRender() {
 }
 
 store.subscribe(scheduleRender);
+/* Everything on this screen that belonged to the person who was signed in.
+ *
+ * store.resetOwner() forgets the business, the queue and the cached copies of
+ * both. This forgets the rest: the half-typed forms, the search box, the tab
+ * somebody was on, the setup wizard's position — all of it filled in by one
+ * account and none of it the next account's to inherit. Without this, signing
+ * out of A and into B on the same device left B looking at A's customer search,
+ * A's service editor and A's setup step.
+ *
+ * The route bookkeeping goes too, because it is what decides whether work needs
+ * doing at all: currentBusinessId is compared against the business the next
+ * account resolves to, and left standing it can match — the same person signing
+ * back in, or a shared business — and skip the load that would have refilled
+ * the state we just emptied. */
+function forgetTenant() {
+  session.forgetAccount();
+  store.resetOwner();
+  store.closeCustomerStream();
+  currentBusinessId = '';
+  currentSlug = '';
+  scrollMemory.clear();
+
+  ui.auth = { name: '', email: '', password: '', errors: {} };
+  ui.showPassword = false;
+  ui.resetSent = false;
+  ui.verifyDismissed = false;
+  ui.googleBusy = false;
+  ui.busy = false;
+  ui.saving = false;
+  ui.setup = { step: 0, errors: {}, slugPreview: '' };
+  ui.setupResumed = false;
+  ui.services = [];
+  ui.search = '';
+  ui.add = { name: '', phone: '', serviceId: '', error: '' };
+  ui.addOpen = false;
+  ui.accountOpen = false;
+  ui.settingsSection = 'business';
+  ui.previewTab = 'join';
+  ui.qrWarning = '';
+  ui.contrastWarning = '';
+  ui.dialog = null;
+  ui.busySet.clear();
+}
+
 /* Signing in or out changes which screen belongs on the page, so it has to
    re-resolve the route and not merely repaint the one already chosen.
  *
@@ -658,13 +738,24 @@ store.subscribe(scheduleRender);
  *
  * Only a change is a routing event. Every other emit — a renewed token, a
  * profile arriving — is a repaint, which is what it was always meant to be. */
-let lastAuthenticated = null;
+/* Identity is tracked by who, not merely by whether. Signing out of one account
+   and into another can settle before this listener runs twice — and a boolean
+   that reads true both times would call it no change, leaving the first
+   account's desk on screen for the second. */
+let lastUserId = null;
+let sawSession = false;
 let reroutePending = false;
 
 session.onSessionChange(() => {
-  const authenticated = session.isSignedIn();
-  const changed = lastAuthenticated !== null && authenticated !== lastAuthenticated;
-  lastAuthenticated = authenticated;
+  const userId = session.userId();
+  const changed = sawSession && userId !== lastUserId;
+  const previous = lastUserId;
+  lastUserId = userId;
+  sawSession = true;
+
+  /* Anything the previous account left behind goes before the next screen is
+     resolved, so nothing of theirs can be painted while B's own data loads. */
+  if (changed && previous !== null) forgetTenant();
 
   if (!booted || !changed) return render();
   // Several emits can land in one tick; one re-resolve answers all of them.
@@ -1004,20 +1095,12 @@ const actions = {
     if (ui.signingOut) return;          // a second click must not queue a second exit
     ui.signingOut = true;
 
-    store.closeStream();
-    store.closeCustomerStream();
-    currentBusinessId = '';
-    store.owner.business = null;
-    store.owner.snapshot = null;
-    store.owner.businesses = [];
-    store.owner.analytics = null;
-    store.owner.members = [];
     ui.accountOpen = false;
-    /* Everything this device held about the business, not merely which one was
-       last open — the read-through cache carried waiting customers by name. */
-    store.clearOwnerStorage();
-
     const done = session.signOut();     // fire and forget; the cookie clears regardless
+    /* The teardown itself is not done here. session.signOut() changes who is
+       signed in, and forgetTenant() hangs off that change — so the same clearing
+       happens whether the session ended at this button or at a refresh token
+       that would not renew. */
     location.hash = '#/';
     navigate();
     done.finally(() => { ui.signingOut = false; });

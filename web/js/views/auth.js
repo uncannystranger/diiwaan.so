@@ -84,7 +84,7 @@ function shell(inner) {
   </div>`;
 }
 
-export function landingView() {
+export function landingView(ui) {
   return shell(`
     <div class="stage stage--entry">
       <div class="customer-split">
@@ -98,9 +98,20 @@ export function landingView() {
           </div>
           <h1 class="serif">${t('auth.headline')}</h1>
           <p class="lead" style="max-width:52ch">${t('auth.lead')}</p>
-          <div class="btn-row" style="max-width:520px">
-            <a class="btn entry-cta entry-cta--primary" href="#/signup">${t('auth.createQueue')}</a>
-            <a class="btn btn--ghost entry-cta" href="#/signin">${t('auth.signIn')}</a>
+          <!-- The three ways in, all of them visible. Google used to be behind
+               the sign-in screen, which meant somebody who signs in with Google
+               had to first find a form they were never going to fill in. -->
+          <div class="entry-actions">
+            <div class="btn-row">
+              <a class="btn entry-cta entry-cta--primary" href="#/signup">${t('auth.createQueue')}</a>
+              <a class="btn btn--ghost entry-cta" href="#/signin">${t('auth.signIn')}</a>
+            </div>
+            <button type="button" class="btn btn--google entry-cta--google"
+                    data-action="google-auth" ${ui?.googleBusy ? 'disabled aria-busy="true"' : ''}>
+              ${ui?.googleBusy ? '<span class="spinner"></span>' : googleMark(19)}
+              <span>${ui?.googleBusy ? t('auth.googleGoing') : t('auth.google')}</span>
+            </button>
+            ${ui?.auth?.errors?.form ? `<p class="error-text">${esc(ui.auth.errors.form)}</p>` : ''}
           </div>
           <div class="row-flex gap-24 mt-8">
             ${[[t('auth.freeTitle'), t('auth.freeHint')],

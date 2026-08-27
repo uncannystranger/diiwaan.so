@@ -80,6 +80,41 @@ export const customer = {
 let disconnectStream = null;
 let refreshTimer = null;
 
+/* Everything the desk held about one signed-in person, put back as it was
+   before anyone signed in.
+ *
+ * This used to live inside the sign-out button's handler, which meant it only
+ * ran when somebody clicked it. A session can end without a click — the renewal
+ * timer calls signOut() when a refresh fails, and a revoked or expired cookie
+ * ends the same way — and those paths left the previous owner's business, queue
+ * snapshot and cached customer names sitting in memory and in localStorage for
+ * whoever signed in next. Owning the teardown here, and driving it from the
+ * identity change rather than from a control, is what makes "who is signed in"
+ * and "whose data is on this device" the same question.
+ *
+ * The customer's own keys are deliberately untouched; clearOwnerStorage says
+ * why. */
+export function resetOwner() {
+  closeStream();
+  owner.loading = true;
+  owner.error = null;
+  owner.business = null;
+  owner.businesses = [];
+  owner.snapshot = null;
+  owner.services = [];
+  owner.members = [];
+  owner.analytics = null;
+  owner.membersLoading = false;
+  owner.busy.clear();
+  /* The freshness stamps are what let a reload skip a fetch. Left standing,
+     they would let the next account read the previous one's answer. */
+  analyticsAt = 0;
+  membersAt = 0;
+  clearTimeout(refreshTimer);
+  clearOwnerStorage();
+  notify();
+}
+
 /* ---------- owner ---------- */
 
 export async function loadAccount() {

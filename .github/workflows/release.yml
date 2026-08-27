@@ -57,7 +57,7 @@ jobs:
           done
           exit $fail
 
-      # These three are pure: no database, no network, no credentials, so they
+      # These are pure: no database, no network, no credentials, so they
       # run anywhere. The suites that need real accounts (tenancy, concurrency)
       # sign in to Firebase and are run against a live server instead.
       - name: QR round-trips
@@ -68,6 +68,12 @@ jobs:
 
       - name: The worker precaches everything the first paint imports
         run: npm run test:shell
+
+      - name: The boot state machine
+        run: npm run test:auth-boot
+
+      - name: One device, two accounts, nothing shared
+        run: npm run test:session-isolation
 
       - name: Both languages are complete
         run: |

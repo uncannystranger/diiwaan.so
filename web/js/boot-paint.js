@@ -27,8 +27,17 @@
     /* The signed-out screens are Diiwaan's own, not a business's. Restoring the
        last account's colours here painted the landing page in whatever palette
        that owner had chosen. */
+    /* The front door is navy and white, and it must be that from the first
+       frame rather than a moment later — otherwise a reload of the sign-in page
+       paints the last owner's amber and then corrects itself, which is the
+       flash this file exists to prevent. app.js sets the same attribute once it
+       runs; this is only about being early. */
     var entry = { '': 1, signup: 1, signin: 1, forgot: 1, reset: 1 };
-    if (!customer && entry[path[0]]) return;
+    if (!customer && Object.prototype.hasOwnProperty.call(entry, path[0])) {
+      root.setAttribute('data-scope', 'entry');
+      return;
+    }
+    root.setAttribute('data-scope', 'app');
 
     var key = customer ? 'q:' + path[1] : 'owner';
 

@@ -120,6 +120,38 @@
   --tap: 44px;
 }
 
+/* ---------- Diiwaan's own front door ----------
+
+   The landing and the sign-in screens are not a business's page and not the
+   desk. They are Diiwaan introducing itself, and they stay navy and white.
+
+   The dashboard keeps its own identity — lamp amber for the action a cashier
+   presses, still water for live states — and a business may replace all five
+   of those with its own. None of that belongs on the front door: a visitor who
+   has never signed in should not be looking at whatever colour the last owner
+   on this device chose, and the product's own front page should not change
+   character because the desk did.
+
+   Overriding the seeds here rather than the semantic tokens is what keeps this
+   to five lines: every surface, ink, border and state is mixed from them, so
+   the whole page follows. It is the same machinery the dashboard uses, pointed
+   at a different set of five. */
+:root[data-scope="entry"] {
+  --p-primary: #1D4E77;    /* harbour navy, deep enough to carry white text */
+  --p-emphasis: #04121D;   /* the same near-black the rest of the product uses */
+  --p-accent: #2E6795;     /* a lighter navy for links and live states */
+  --p-base: #FBFCFA;       /* the off-white every light surface is mixed from */
+  --p-tint: #24486B;       /* navy again, for washes and glass */
+  --p-on-primary: #FBFCFA;
+  --p-on-accent: #FBFCFA;
+  --p-accent-ink: #24567E;
+  --p-accent-lift: #7FB0D6;
+  --p-primary-ink: #1D4E77;
+  --p-primary-dark: #9CC4E4;
+  --p-on-primary-dark: #04121D;
+  --p-primary-ink-dark: #9CC4E4;
+}
+
 /* ---------- the four surface styles ----------
 
    Each is drawn entirely from the selected palette — never from colours of its
@@ -1931,17 +1963,26 @@ html.retint, html.retint *, html.retint *::before, html.retint *::after {
   .topbar__id { min-width: 0; }
   .topbar__id > span { min-width: 0; }
 
-  /* Secondary actions read as one rank: same height, one line each. */
+  /* Secondary actions read as one rank: same height, and on one line wherever
+     the line fits.
+
+     It used to be `white-space: nowrap`, unconditionally. In a two-column grid
+     on a 375px phone each of these gets about 165px, and Somali labels are
+     longer than their English counterparts — "Soo dejiso warbixinta" wants 183.
+     Held to one line it did not shrink and it did not ellipsise; it was simply
+     cut off mid-word at the button's edge, so the owner could not read what the
+     control did. Wrapping to a second line costs a few pixels of height and
+     keeps the whole label, which is the trade the shorter labels never have to
+     make: they still sit on one line, because they fit. */
   .btn-row .btn--quiet {
     min-height: 48px;
-    white-space: nowrap;
     font-size: 14px;
     padding-inline: 14px;
   }
 }
 
-/* Very narrow phones: keep the labels on one line rather than shrinking the
-   tap target to fit them. */
+/* Very narrow phones: buy the label room by tightening the type and the
+   padding, so fewer of them need a second line at all. */
 @media (max-width: 400px) {
   .btn-row .btn--quiet { font-size: 13px; padding-inline: 11px; }
 }
@@ -2804,4 +2845,36 @@ html.retint, html.retint *, html.retint *::before, html.retint *::after {
 
   /* An icon button is square, so its width has to come up with its height. */
   .icon-btn { min-width: 44px; min-height: 44px; }
+}
+
+/* ---------- the three ways in ----------
+
+   Create a queue, sign in, continue with Google. They sit together as one
+   group so a visitor sees every route in at once, and the Google button spans
+   the pair above it rather than becoming a third column — three equal buttons
+   in a row would give it the same weight as creating an account, which it does
+   not have. */
+.entry-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-width: 520px;
+  width: 100%;
+}
+.entry-cta--google {
+  /* Full width, so it reads as one of the three ways in rather than as a third
+     column squeezed beside them — which is what it was, and what stretched it
+     to the height of the pair and a half.
+
+     Its height is deliberately left to `.stage--entry .btn` above, which is
+     what every control on this screen is measured by. A min-height here would
+     lose to that rule's specificity anyway, and the three ways in should stand
+     the same height regardless: the weight between them is carried by fill and
+     border, not by size. */
+  width: 100%;
+  white-space: nowrap;
+}
+
+@media (max-width: 640px) {
+  .entry-actions { max-width: none; }
 }

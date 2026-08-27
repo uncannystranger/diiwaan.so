@@ -252,11 +252,17 @@ export async function streamReport(business, { period = 'today', generatedBy = '
   const [data, logo] = await Promise.all([gatherData(business, range), fetchLogo(business)]);
 
   // Buffered pages let the footer be stamped on every page once the total is known.
+  /* CreationDate is not decoration. PDFKit derives the document's file ID from
+     the info dictionary and reads `info.CreationDate.getTime()` unguarded, so a
+     custom info block without it throws inside the constructor — every report
+     request answering 500 before a single byte is drawn. It supplies its own
+     date only when the whole block is left out, which this one is not. */
   const doc = new PDFDocument({ ...PAGE, bufferPages: true, info: {
     Title: `${business.name} — queue report`,
     Author: business.name,
     Subject: `Queue activity, ${range.label.toLowerCase()}`,
-    Creator: 'Diiwaan'
+    Creator: 'Diiwaan',
+    CreationDate: new Date()
   } });
   doc.pipe(res);
 

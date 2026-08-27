@@ -440,6 +440,22 @@ export async function uploadBrandingImage(file, { businessId } = {}) {
   return data.url;
 }
 
+/**
+ * Drops the profile view without touching the session or notifying anyone.
+ *
+ * Signing out clears this as part of ending the session, but an account can be
+ * replaced without one — a Google callback adopting a second account in a tab
+ * that already held a first. The profile left standing there is what tells the
+ * router it need not ask the API who is signed in, so the new account would be
+ * routed as the old one. No emit, because the caller is already inside the
+ * change that prompted it.
+ */
+export function forgetAccount() {
+  state.user = null;
+  state.businesses = [];
+  state.needsVerification = false;
+}
+
 /** Called after any sign-in: our API supplies the profile and businesses. */
 export function setAccount({ user, businesses }) {
   state.user = user;
