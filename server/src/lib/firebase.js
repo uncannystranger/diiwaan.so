@@ -127,6 +127,10 @@ async function probeGoogle() {
        already has a Google session. */
     const consent = await fetch(authUri, { redirect: 'follow', signal: AbortSignal.timeout(8000) });
     const landing = new URL(consent.url);
+    /* The verdict is in the URL, so the body — 800KB of consent or error markup
+       — is never read. Unread, it holds its socket open until the pool notices;
+       cancelling hands it back now. */
+    consent.body?.cancel().catch(() => {});
     if (!/\/signin\/oauth\/error/.test(landing.pathname)) return { ready: true, reason: 'ok' };
 
     let detail = landing.searchParams.get('authError') || '';

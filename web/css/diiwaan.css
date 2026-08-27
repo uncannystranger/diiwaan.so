@@ -2845,6 +2845,20 @@ html.retint, html.retint *, html.retint *::before, html.retint *::after {
 
   /* An icon button is square, so its width has to come up with its height. */
   .icon-btn { min-width: 44px; min-height: 44px; }
+
+  /* Three that the list above missed, found by measuring every control on a
+     390px viewport rather than by reading the stylesheet.
+
+     The mobile bar's own tools — the language and theme toggles — sat at 38x38
+     in the one row of controls that exists only on a phone, which is the last
+     place a target should be under size. The switch was 36 tall. And the QR
+     correction-level chips had the height but not the width: they hold a single
+     letter, so `min-height` alone left them 38-43 wide and they are four
+     adjacent targets, where a narrow one is pressed by mistake rather than
+     missed. Width is what was wrong, so width is what is set. */
+  .mobile-nav__tool { min-width: 44px; min-height: 44px; }
+  .switch { min-height: 44px; }
+  .seg button, .seg a, .chip { min-width: 44px; }
 }
 
 /* ---------- the three ways in ----------
