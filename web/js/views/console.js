@@ -30,7 +30,7 @@ export function chrome(current, { business, user, role, connection, snapshot }) 
   <a class="skip-link" href="#main">${t('con.skipToQueue')}</a>
   <div class="topbar">
     <div class="topbar__identity">
-      <a class="topbar__id" href="#/queue" aria-label="${esc(business.name)} — queue">
+      <a class="topbar__id" href="/app/queue" aria-label="${esc(business.name)} — queue">
         ${logoMark(business)}
         <span>
           <b>${esc(business.name)}</b>
@@ -41,12 +41,12 @@ export function chrome(current, { business, user, role, connection, snapshot }) 
 
     <nav class="seg topbar__tabs" aria-label="${esc(t('con.sections'))}">
       ${TABS.map(id => `
-        <a href="#/${id}" ${current === id ? 'aria-current="page"' : ''}>${t(`con.tab.${id}`)}</a>`).join('')}
+        <a href="/app/${id}" ${current === id ? 'aria-current="page"' : ''}>${t(`con.tab.${id}`)}</a>`).join('')}
     </nav>
 
     <div class="topbar__right">
       ${livePill(connection, { paused: queue?.status === 'paused', closed: queue?.status === 'closed' })}
-      <a class="icon-btn hide-sm" href="#/j/${esc(business.slug)}" title="${esc(t('brand.openReal'))}"
+      <a class="icon-btn hide-sm" href="/j/${esc(business.slug)}" title="${esc(t('brand.openReal'))}"
          aria-label="${esc(t('brand.openReal'))}">${icon('eye')}</a>
       <span class="hide-sm">${languageButton()}</span>
       <span class="hide-sm">${themeButton()}</span>
@@ -61,7 +61,7 @@ export function mobileNav(current) {
   return `
   <nav class="mobile-nav" aria-label="${esc(t('con.sections'))}">
     ${TABS.map(id => `
-      <a href="#/${id}" ${current === id ? 'aria-current="page"' : ''}>
+      <a href="/app/${id}" ${current === id ? 'aria-current="page"' : ''}>
         ${icon(id, 21)}<span>${t(`con.tab.${id}`)}</span>
       </a>`).join('')}
     <span class="mobile-nav__tools">
@@ -333,7 +333,7 @@ export function overviewView(ui, ctx) {
           <button class="btn btn--quiet btn--auto btn--sm" data-action="download-report">
             ${icon('report', 15)}&nbsp; ${t('con.downloadReport')}
           </button>
-          <a class="btn btn--ghost btn--auto btn--sm" href="#/queue">${t('con.openQueue')}</a>
+          <a class="btn btn--ghost btn--auto btn--sm" href="/app/queue">${t('con.openQueue')}</a>
         </div>
       </div>
 
@@ -398,7 +398,7 @@ export function overviewView(ui, ctx) {
           </div>
           <div class="btn-row" style="width:100%">
             <button class="btn btn--quiet btn--sm" data-action="copy-link">${icon('copy', 15)}&nbsp; ${t('con.copyLink')}</button>
-            <a class="btn btn--quiet btn--sm" href="#/sign" style="text-align:center">${icon('print', 15)}&nbsp; ${t('con.sign')}</a>
+            <a class="btn btn--quiet btn--sm" href="/app/sign" style="text-align:center">${icon('print', 15)}&nbsp; ${t('con.sign')}</a>
           </div>
           <button class="btn btn--ghost btn--sm" style="width:100%" data-action="open-display">
             ${icon('screen', 15)}&nbsp; ${t('display.open')}
@@ -487,8 +487,8 @@ function accountSheet({ business, user, role }) {
       </div>
 
       <div class="stack gap-12 mt-24">
-        <a class="btn btn--quiet" href="#/brand" style="text-align:center">${t('con.brandPage')}</a>
-        <a class="btn btn--quiet" href="#/settings" style="text-align:center">${t('con.settings')}</a>
+        <a class="btn btn--quiet" href="/app/brand" style="text-align:center">${t('con.brandPage')}</a>
+        <a class="btn btn--quiet" href="/app/settings" style="text-align:center">${t('con.settings')}</a>
         <button class="btn btn--quiet" data-action="sign-out">${icon('logout', 16)}&nbsp; ${t('con.signOut')}</button>
       </div>
     </div>

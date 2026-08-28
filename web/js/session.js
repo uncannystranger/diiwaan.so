@@ -343,8 +343,13 @@ export async function boot() {
     sessionStorage.removeItem('diiwaan:after-google');
     const back = isSignedIn() ? (intended || 'queue') : 'signin';
     /* The address bar is rewritten either way, so nothing the handler appended
-       is left sitting in history for the next person on this device. */
-    history.replaceState(null, '', `${location.pathname}#/${back}`);
+       is left sitting in history for the next person on this device. The desk
+       lives under /app now; the way in does not. */
+    const CONSOLE = ['queue', 'overview', 'brand', 'settings', 'sign', 'display'];
+    const path = back.startsWith('j/') || back.startsWith('t/')
+      ? `/${back}`
+      : CONSOLE.includes(back) ? `/app/${back}` : `/${back}`;
+    history.replaceState(null, '', path);
   }
 
   /* A session restore that stalls must not hold the whole interface hostage —
@@ -439,7 +444,10 @@ export async function startGoogle() {
        so the intended destination cannot be held in memory across it — and
        landing everyone on the queue would throw away an invitation link or a
        half-finished setup. Session-scoped, because it belongs to this one trip. */
-    const from = location.hash.replace(/^#\/?/, '');
+    /* Where to come back to, read from the path now rather than the fragment.
+       /app/settings is remembered as "settings", which is what the return leg
+       above turns back into an address. */
+    const from = location.pathname.replace(/^\/+/, '').replace(/^app\//, '');
     if (from && !['signin', 'signup'].includes(from)) {
       sessionStorage.setItem('diiwaan:after-google', from);
     }

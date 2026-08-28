@@ -16,7 +16,7 @@ import { t } from '../i18n.js';
 function displayChrome(ui) {
   return `
   <div class="display__chrome ${ui.displayIdle ? 'display__chrome--away' : ''}">
-    <a class="btn btn--quiet btn--sm btn--auto" href="#/overview">${icon('back', 15)}&nbsp; ${t('display.exit')}</a>
+    <a class="btn btn--quiet btn--sm btn--auto" href="/app/overview">${icon('back', 15)}&nbsp; ${t('display.exit')}</a>
     <button class="btn btn--quiet btn--sm btn--auto" data-action="display-fullscreen">
       ${icon('expand', 15)}&nbsp; ${t('display.fullscreen')}
     </button>

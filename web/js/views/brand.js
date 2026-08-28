@@ -127,7 +127,7 @@ function preview(ui, business) {
       <div class="device__aurora"></div>
       <div class="device__scale">${tab === 'join' ? join : tab === 'ticket' ? ticket : called}</div>
     </div>
-    <a class="btn btn--ghost" href="#/j/${esc(business.slug)}" style="text-align:center">${t('brand.openReal')}</a>
+    <a class="btn btn--ghost" href="/j/${esc(business.slug)}" style="text-align:center">${t('brand.openReal')}</a>
   </div>`;
 }
 
@@ -353,7 +353,7 @@ export function brandView(ui, ctx) {
                 <div class="btn-row">
                   <button class="btn btn--quiet btn--sm" data-action="download-qr" data-value="svg">${icon('download', 15)}&nbsp; SVG</button>
                   <button class="btn btn--quiet btn--sm" data-action="download-qr" data-value="png">${icon('download', 15)}&nbsp; PNG</button>
-                  <a class="btn btn--quiet btn--sm" href="#/sign" style="text-align:center">${icon('print', 15)}&nbsp; ${t('con.sign')}</a>
+                  <a class="btn btn--quiet btn--sm" href="/app/sign" style="text-align:center">${icon('print', 15)}&nbsp; ${t('con.sign')}</a>
                 </div>
                 <p class="hint">${t('brand.qrCheckHint')}</p>
               </div>

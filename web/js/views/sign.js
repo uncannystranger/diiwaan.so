@@ -11,7 +11,7 @@ export function signView(ui, { business, snapshot, joinBase }) {
   return `
   <div class="screen">
     <div class="topbar no-print">
-      <a class="btn btn--quiet btn--auto btn--sm" href="#/brand">${icon('back', 15)}&nbsp; ${t('sign.backToBrand')}</a>
+      <a class="btn btn--quiet btn--auto btn--sm" href="/app/brand">${icon('back', 15)}&nbsp; ${t('sign.backToBrand')}</a>
       <div class="btn-row">
         <button class="btn btn--quiet btn--auto btn--sm" data-action="print">${icon('print', 15)}&nbsp; ${t('sign.print')}</button>
         <button class="btn btn--quiet btn--auto btn--sm" data-action="download-qr" data-value="png">${icon('download', 15)}&nbsp; PNG</button>

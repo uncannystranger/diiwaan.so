@@ -278,6 +278,35 @@ is held as a pending action — no number is invented, because only the server c
 When the device reconnects, the pending join is replayed and the real ticket appears. Desk
 actions are never applied offline: the server stays authoritative over the queue.
 
+## Addresses
+
+Three surfaces, three places, so that no address can mean two things.
+
+```
+/                      the landing page, and only ever that
+/signin  /signup       the way in
+/setup                 naming a business, once
+/app/queue             the desk
+/app/overview          today's numbers
+/app/brand             colours, logo, the printed sign
+/app/settings          everything else
+/j/<slug>              what a scanned code opens
+/t/<slug>              the ticket that scan produced
+```
+
+They used to share one address behind a fragment: `/` was the landing page and
+`/#/queue` was the desk, one document wearing both. That is fine until something
+delays the session by a moment — and then a refresh of the desk showed the
+marketing page, because it had asked the same address the marketing page answers
+to. Separate paths make that unsayable: there is no reading of `/app/queue`
+under which it is the front door.
+
+Connected at the seam rather than merged. Somebody who asks for `/app/settings`
+without a session is sent to sign in and then to `/app/settings` — not to the
+landing page, which would throw away what they came for. Old `#/` links still
+arrive from bookmarks and messages; they are read as they always were and
+rewritten to the address they mean.
+
 ## Which parts of Firebase this uses, and which it does not
 
 Firebase Authentication, and nothing else. That is a decision with a reason, not

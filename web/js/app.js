@@ -173,15 +173,59 @@ const toastMarkup = () => ui.toasts.length ? `
 
 /* ---------- routing ---------- */
 
+/* ---------- three surfaces, three addresses ----------
+
+   The front door, the desk and the customer's queue are different places, and
+   they now have different URLs to match:
+
+     /                     the landing page, and nothing else
+     /app/queue …          the desk: queue, overview, brand, settings, sign
+     /signin /signup …     the way in
+     /j/<slug>, /t/<slug>  what a scanned code opens
+
+   They all used to live at the root behind a fragment — /#/queue was the desk
+   and / was the landing page, one document wearing both. A refresh of the desk
+   asked the same address the landing page answers to, so anything that delayed
+   the session by a moment showed the marketing page at the URL of the work.
+   Separate paths make that impossible to express: /app/queue has no reading
+   under which it is the front door.
+
+   Old fragment links still arrive — bookmarks, a printed sheet, a message
+   somebody sent last week — so they are read exactly as before and then
+   rewritten to the address they mean. Nothing that used to work stops. */
+const APP_PREFIX = '/app';
+/* The desk somebody asked for before they were sent to sign in. */
+const INTENDED_KEY = 'diiwaan:after-signin';
+const CUSTOMER_PREFIXES = ['j', 't'];
+
+/** The desk they were headed for before signing in, or the queue. Read once. */
+function intendedDesk() {
+  let wanted = '';
+  try {
+    wanted = sessionStorage.getItem(INTENDED_KEY) || '';
+    sessionStorage.removeItem(INTENDED_KEY);
+  } catch { /* private mode */ }
+  return CONSOLE_ROUTES.includes(wanted) ? wanted : 'queue';
+}
+
+/** Where a route lives. The one place a URL for a screen is spelled. */
+function pathFor(kind, param = '') {
+  if (kind === 'customer') return param ? `/j/${param}` : '/';
+  if (kind === 'landing') return '/';
+  if (CONSOLE_ROUTES.includes(kind)) return `${APP_PREFIX}/${kind}`;
+  return `/${kind}`;
+}
+
 function parseRoute() {
-  const hash = location.hash.replace(/^#\/?/, '');
-  if (hash) {
-    const [name, param] = hash.split('/');
-    return { name: name || '', param: param || '' };
-  }
-  // Deep links such as /j/hodan-clinic arrive as a real path.
-  const [, name = '', param = ''] = location.pathname.split('/');
-  return { name, param };
+  /* A fragment is read first and only because old links carry one; canonicalise
+     replaces it with the path it means as soon as the route resolves. */
+  const legacy = location.hash.replace(/^#\/?/, '');
+  const source = legacy || location.pathname.replace(/^\/+/, '');
+  const [first = '', second = ''] = source.split('/');
+
+  // Everything under /app is a section of the desk; bare /app is the queue.
+  if (first === 'app') return { name: second || 'queue', param: '' };
+  return { name: first, param: second };
 }
 
 const CONSOLE_ROUTES = ['queue', 'overview', 'brand', 'settings', 'sign', 'display'];
@@ -226,7 +270,19 @@ async function resolveRoute() {
     if (session.state.phase === 'error') {
       return { kind: AUTH_ROUTES[route.name] ? route.name : 'reconnect' };
     }
-    return { kind: AUTH_ROUTES[route.name] ? route.name : 'landing' };
+    if (AUTH_ROUTES[route.name] || route.name === 'setup') return { kind: route.name };
+
+    /* Asking for the desk without a session is not the same as arriving at the
+       front door. Somebody who typed /app/settings, or followed a bookmark to
+       it, wants that page — sending them to a page selling the product throws
+       their intent away. They go to sign in, and the desk they asked for is
+       kept so signing in finishes the journey rather than dumping them on the
+       queue. The two surfaces are separate; this is the seam between them. */
+    if (CONSOLE_ROUTES.includes(route.name)) {
+      try { sessionStorage.setItem(INTENDED_KEY, route.name); } catch { /* private mode */ }
+      return { kind: 'signin' };
+    }
+    return { kind: 'landing' };
   }
 
   if (!session.state.user) await store.loadAccount();
@@ -688,15 +744,17 @@ async function navigate() {
    not a new one. Adding a history entry would make Back undo the correction and
    land straight back on the wrong URL. */
 function canonicalise(route) {
-  // Customer routes are real paths carrying a slug; they are already canonical.
+  /* The customer's own routes carry a slug this function does not have, and the
+     join and leave flows set them precisely; leave them alone. */
   if (route.kind === 'customer') return;
 
-  const target = `#/${route.kind === 'landing' ? '' : route.kind}`;
-  if (location.hash === target) return;
-  // A bare '/' with no hash is a legitimate spelling of the landing route.
-  if (target === '#/' && (location.hash === '' || location.hash === '#')) return;
+  const target = pathFor(route.kind);
+  /* A fragment left over from an old link is dropped here. It is how /#/queue
+     becomes /app/queue without anybody noticing, and why a bookmark made a
+     month ago still lands on the desk. */
+  if (location.pathname === target && !location.hash) return;
 
-  history.replaceState(null, '', `${location.pathname}${location.search}${target}`);
+  history.replaceState(null, '', `${target}${location.search}`);
 }
 
 /* Renders are coalesced to one per frame. A hidden tab never gets a frame, so a
@@ -1019,7 +1077,7 @@ const actions = {
       await session.signUp({ email, password, name });
       await store.loadAccount();
       if (session.state.user) await api.updateProfile({ name });
-      location.hash = '#/setup';
+      history.pushState(null, '', pathFor('setup'));
       toast(t('msg.accountCreated'));
     } catch (error) {
       ui.auth.errors = { form: error.message };
@@ -1041,7 +1099,7 @@ const actions = {
       await session.signIn({ email, password });
       await store.loadAccount();
       ui.auth = { name: '', email: '', password: '', errors: {} };
-      location.hash = '#/queue';
+      history.pushState(null, '', pathFor(intendedDesk()));
       toast(t('msg.welcomeBack'));
     } catch (error) {
       /* An account that exists but was never confirmed is not a wrong password —
@@ -1076,7 +1134,7 @@ const actions = {
     try {
       await session.updatePassword(password);
       toast(t('msg.passwordUpdated'));
-      location.hash = '#/queue';
+      history.pushState(null, '', pathFor('queue'));
     } catch (error) {
       ui.auth.errors = { form: error.message };
     } finally {
@@ -1163,7 +1221,7 @@ const actions = {
        signed in, and forgetTenant() hangs off that change — so the same clearing
        happens whether the session ended at this button or at a refresh token
        that would not renew. */
-    location.hash = '#/';
+    history.pushState(null, '', pathFor('landing'));
     navigate();
     done.finally(() => { ui.signingOut = false; });
   },
@@ -1220,7 +1278,7 @@ const actions = {
       const { business: updated } = await api.finishOnboarding(business().id);
       await refreshBusiness(updated);
       ui.setup = { step: 0, errors: {}, slugPreview: '' };
-      location.hash = '#/queue';
+      history.pushState(null, '', pathFor('queue'));
       toast(t('msg.queueLive'));
     } catch (error) { reportError(error); } finally {
       ui.busy = false;
@@ -1288,7 +1346,7 @@ const actions = {
     if (!opened) {
       // A blocked popup should not be a dead end.
       toast(t('display.blocked'), { variant: 'warn', timeout: 5000 });
-      location.hash = '#/display';
+      history.pushState(null, '', pathFor('display'));
     }
   },
 
@@ -1664,7 +1722,7 @@ const actions = {
       store.rememberCustomer(store.customer.slug, name);
       ui.join = { name: '', phone: '', serviceId: '', errors: {} };
       lastAnnounced = null;
-      history.replaceState(null, '', `#/t/${store.customer.slug}`);
+      history.replaceState(null, '', `/t/${store.customer.slug}`);
       toast(t('msg.youAreInQueue', { label: result.ticket.label }));
       // Browsers only allow a permission prompt while a gesture is still in
       // effect, and joining is that gesture. If it is refused or unavailable the
@@ -1690,7 +1748,7 @@ const actions = {
     if (!ok) return;
     try {
       await store.leaveQueue();
-      history.replaceState(null, '', `#/j/${store.customer.slug}`);
+      history.replaceState(null, '', `/j/${store.customer.slug}`);
       toast(t('msg.youLeft'), { variant: 'warn' });
       await navigate();
     } catch (error) { reportError(error); }
@@ -1698,14 +1756,14 @@ const actions = {
   async rejoin() {
     store.clearTicketToken(store.customer.slug);
     store.customer.token = '';
-    history.replaceState(null, '', `#/j/${store.customer.slug}`);
+    history.replaceState(null, '', `/j/${store.customer.slug}`);
     await store.refreshCustomer();
     await navigate();
   },
   async 'retry-join'() {
     await store.flushPending();
     if (store.customer.pendingJoin) toast(t('msg.stillOffline'), { variant: 'warn' });
-    else { toast('You are in the queue'); history.replaceState(null, '', `#/t/${store.customer.slug}`); }
+    else { toast('You are in the queue'); history.replaceState(null, '', `/t/${store.customer.slug}`); }
     await navigate();
   },
   'cancel-pending'() {
@@ -1848,7 +1906,43 @@ const PRESS_FEEL = {
 const handlerFor = name => (Object.hasOwn(actions, name) ? actions[name] : undefined);
 const feelFor = name => (Object.hasOwn(PRESS_FEEL, name) ? PRESS_FEEL[name] : 'tap');
 
+/* Moving between screens without reloading the application.
+ *
+ * With the screens behind a fragment the browser did this for us: a click on
+ * #/queue changed the hash and never touched the network. Real paths do not
+ * work that way — the browser would fetch /app/queue and start the whole app
+ * again, throwing away the session in memory and the queue on screen for a
+ * navigation that should cost nothing.
+ *
+ * So same-origin links are taken over here and answered from the router. Only
+ * ordinary left clicks: a middle click, a modified click and a download are all
+ * requests to do something this cannot do, and they are left to the browser. */
+export function goTo(kind, param = '') {
+  const target = pathFor(kind, param);
+  if (location.pathname !== target || location.hash) {
+    history.pushState(null, '', `${target}${location.search}`);
+  }
+  return navigate();
+}
+
 root.addEventListener('click', event => {
+  const link = event.target.closest('a[href]');
+  if (link && !event.defaultPrevented) {
+    const plain = event.button === 0 && !event.metaKey && !event.ctrlKey
+      && !event.shiftKey && !event.altKey;
+    const url = new URL(link.href, location.href);
+    const internal = url.origin === location.origin
+      && link.target !== '_blank' && !link.hasAttribute('download');
+    if (plain && internal && !link.hasAttribute('data-action')) {
+      event.preventDefault();
+      if (url.pathname !== location.pathname || url.hash !== location.hash) {
+        history.pushState(null, '', url.pathname + url.search + url.hash);
+      }
+      navigate();
+      return;
+    }
+  }
+
   const el = event.target.closest('[data-action]');
   if (!el || el.tagName === 'FORM') return;
   event.preventDefault();
@@ -2033,6 +2127,9 @@ document.addEventListener('keydown', event => {
 
 /* ---------- lifecycle ---------- */
 
+/* Back and forward now move between paths, so popstate is the real signal.
+   hashchange stays for the old fragment links still in circulation. */
+window.addEventListener('popstate', () => navigate());
 window.addEventListener('hashchange', () => {
   ui.addOpen = false;
   ui.accountOpen = false;
@@ -2044,7 +2141,7 @@ window.addEventListener('online', async () => {
   if (store.customer.pendingJoin) {
     await store.flushPending();
     if (!store.customer.pendingJoin) {
-      history.replaceState(null, '', `#/t/${store.customer.slug}`);
+      history.replaceState(null, '', `/t/${store.customer.slug}`);
       toast('You are in the queue');
       await navigate();
     }

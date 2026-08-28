@@ -106,7 +106,7 @@ function shell(inner) {
   return `
   <div class="screen">
     <div class="topbar">
-      <a href="#/" aria-label="${esc(t('auth.home'))}">${wordmark(16)}</a>
+      <a href="/" aria-label="${esc(t('auth.home'))}">${wordmark(16)}</a>
       <div class="topbar__right">${languageButton()}${themeButton()}</div>
     </div>
     ${inner}
@@ -139,7 +139,7 @@ export function reconnectView(ui) {
           </button>
         </div>
         <p class="hint">
-          <a class="btn--link" href="#/signin">${t('auth.signIn')}</a>
+          <a class="btn--link" href="/signin">${t('auth.signIn')}</a>
         </p>
       </div>
     </div>`);
@@ -171,8 +171,8 @@ export function landingView(ui) {
                be offered, development sees why and nobody else sees anything. -->
           <div class="entry-actions">
             <div class="btn-row">
-              <a class="btn entry-cta entry-cta--primary" href="#/signup">${t('auth.createQueue')}</a>
-              <a class="btn btn--ghost entry-cta" href="#/signin">${t('auth.signIn')}</a>
+              <a class="btn entry-cta entry-cta--primary" href="/signup">${t('auth.createQueue')}</a>
+              <a class="btn btn--ghost entry-cta" href="/signin">${t('auth.signIn')}</a>
             </div>
             ${googleAuthAvailable() ? `
               <button type="button" class="btn btn--google entry-cta--google"
@@ -291,7 +291,7 @@ export function signUpView(ui) {
             ${ui.busy ? `<span class="spinner"></span>&nbsp; ${t('auth.creating')}` : t('auth.createAccount')}
           </button>
           ${googleButton(ui)}
-          <p class="hint center">${t('auth.haveAccount')} <a href="#/signin">${t('auth.signIn')}</a></p>
+          <p class="hint center">${t('auth.haveAccount')} <a href="/signin">${t('auth.signIn')}</a></p>
         </form>
       </div>
     </div>`);
@@ -323,8 +323,8 @@ export function signInView(ui) {
           </button>
           ${googleButton(ui)}
           <div class="between">
-            <a class="hint" href="#/forgot">${t('auth.forgot')}</a>
-            <a class="hint" href="#/signup">${t('auth.createOne')}</a>
+            <a class="hint" href="/forgot">${t('auth.forgot')}</a>
+            <a class="hint" href="/signup">${t('auth.createOne')}</a>
           </div>
         </form>
       </div>
@@ -344,7 +344,7 @@ export function forgotView(ui) {
           <div class="card stack gap-16">
             <span class="pill" style="align-self:flex-start"><i class="tick"></i>${t('auth.emailSent')}</span>
             <p class="lead">${esc(t('auth.checkInbox', { email: form.email }))}</p>
-            <a class="btn btn--quiet" href="#/signin" style="text-align:center">${t('auth.backToSignIn')}</a>
+            <a class="btn btn--quiet" href="/signin" style="text-align:center">${t('auth.backToSignIn')}</a>
           </div>` : `
           <form class="card stack gap-16" data-action="send-reset" novalidate>
             <div class="field ${form.errors.email ? 'field--bad' : ''}">
@@ -356,7 +356,7 @@ export function forgotView(ui) {
             <button class="btn" type="submit" ${ui.busy ? 'disabled aria-busy="true"' : ''}>
               ${ui.busy ? `<span class="spinner"></span>&nbsp; ${t('auth.sending')}` : t('auth.sendReset')}
             </button>
-            <p class="hint center"><a href="#/signin">${t('auth.backToSignIn')}</a></p>
+            <p class="hint center"><a href="/signin">${t('auth.backToSignIn')}</a></p>
           </form>`}
       </div>
     </div>`);
