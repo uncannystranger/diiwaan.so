@@ -42,7 +42,7 @@
                               screen blank
      the API                  never cached; queue state is the server's word */
 
-const CACHE = 'diiwaan-v20';
+const CACHE = 'diiwaan-v21';
 const NETWORK_DEADLINE_MS = 2500;
 
 /* Code this project authors and ships as a set. Kept as a predicate rather than
@@ -94,7 +94,19 @@ const save = (request, response) => {
 };
 
 self.addEventListener('install', event => {
-  event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(SHELL)).then(() => self.skipWaiting()));
+  /* One entry at a time, and a failure is survivable.
+   *
+   * cache.addAll() is atomic: a single request that 404s or times out rejects
+   * the whole thing, install fails, the new worker never activates — and the
+   * old one keeps serving the old application indefinitely. That is a very
+   * quiet way to make a deploy invisible, and the only symptom is that nothing
+   * you ship ever arrives. Precaching is an optimisation; it is not worth the
+   * update mechanism. */
+  event.waitUntil((async () => {
+    const cache = await caches.open(CACHE);
+    await Promise.allSettled(SHELL.map(url => cache.add(new Request(url, { cache: 'reload' }))));
+    await self.skipWaiting();
+  })());
 });
 
 self.addEventListener('activate', event => {
@@ -118,14 +130,33 @@ self.addEventListener('fetch', event => {
   if (isDocument || isOwnCode(url)) {
     /* Tried fresh first so a deploy lands, but only for as long as a person
        will wait. Past that the cached copy is served — it boots the app, which
-       then talks to the API on its own terms. A document with nothing cached
-       falls back to the shell; a module has no such substitute, so it falls
-       through to the network and reports honestly if that fails. */
+       then talks to the API on its own terms.
+
+       The request is NOT abandoned when the deadline passes, and that is the
+       whole point of this shape. It used to be: the race resolved null, the
+       cached copy went out, and the response still in flight was dropped on the
+       floor. On a connection slower than the deadline that meant the cache was
+       never once updated — the same app.js and the same stylesheet served
+       release after release, with every deploy landing on the server and none
+       of it ever reaching the person. A slow phone was pinned to whichever
+       version it happened to cache first.
+
+       So the fetch is allowed to finish in the background and write what it
+       finds. This load is served from cache; the next one has the new code, and
+       the reload on controllerchange picks it up from there. */
     event.respondWith((async () => {
-      const fresh = await withDeadline(fetch(request), NETWORK_DEADLINE_MS);
-      if (fresh && fresh.ok) return save(request, fresh);
+      const network = fetch(request).then(response => {
+        if (response && response.ok) save(request, response.clone());
+        return response;
+      }).catch(() => null);
+      event.waitUntil(network);
+
+      const fresh = await withDeadline(network, NETWORK_DEADLINE_MS);
+      if (fresh && fresh.ok) return fresh;
       const cached = await caches.match(request);
       if (cached) return cached;
+      const settled = await network;
+      if (settled) return settled;
       return isDocument ? (await caches.match('/index.html')) || fetch(request) : fetch(request);
     })());
     return;

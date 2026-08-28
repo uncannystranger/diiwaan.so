@@ -571,19 +571,26 @@ p { margin: 0; }
 
 /* ---------- surfaces ---------- */
 
+/* A surface, stated once.
+ *
+ * This carried a fill, a border and a drop shadow — three ways of saying the
+ * same thing, stacked. On a page holding several of them the shadows pool into
+ * a haze and nothing looks nearer than anything else, which is the opposite of
+ * what depth is for. The fill and a hairline are enough to separate a card from
+ * the page; shadow is kept for the things that genuinely float above it, which
+ * is dialogs and the sheet. */
 .card {
   padding: clamp(24px, 2.4vw, 34px) clamp(22px, 2.5vw, 36px);
-  border-radius: 32px;
+  border-radius: var(--r-lg);
   background: var(--surface);
   border: 1px solid var(--edge);
-  box-shadow: var(--shadow-panel);
 }
 .card--flat {
   background: var(--surface-quiet);
   box-shadow: var(--shadow-soft);
 }
 .card--quiet { background: var(--glass-quiet); box-shadow: none; }
-.card--tight { padding: clamp(20px, 2vw, 26px) clamp(20px, 2vw, 24px); border-radius: 30px; }
+.card--tight { padding: clamp(20px, 2vw, 26px) clamp(20px, 2vw, 24px); border-radius: var(--r-lg); }
 
 .note {
   padding: 20px 22px;
@@ -1273,7 +1280,17 @@ input[type="range"] { accent-color: var(--brand); width: 100%; }
 
 .panel-stack { display: flex; flex-direction: column; gap: clamp(16px, 2vw, 24px); min-width: 0; }
 
-.serving-panel { flex: 1; display: flex; flex-direction: column; padding: clamp(26px, 3vw, 44px) clamp(24px, 3vw, 46px); border-radius: 36px; }
+/* ---------- how big a corner should be ----------
+
+   The main surfaces were rounded 32, 36 and 40. At that size a corner stops
+   being a detail and becomes the loudest thing about a panel: everything reads
+   as a soft capsule, the shapes lose their edges, and a screenful of them looks
+   like a toy rather than an instrument somebody uses all day.
+
+   They come down onto the scale. A panel is a rectangle with its corners taken
+   off, not a pill — the calm comes from the type and the spacing, and the
+   surface should get out of their way. */
+.serving-panel { flex: 1; display: flex; flex-direction: column; padding: clamp(26px, 3vw, 44px) clamp(24px, 3vw, 46px); border-radius: var(--r-lg); }
 .serving-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 24px; flex-wrap: wrap; }
 .serving-head > :first-child { flex: 1 1 240px; min-width: 0; }
 .serving-head > :last-child { flex: 0 0 auto; }
@@ -1335,7 +1352,7 @@ input[type="range"] { accent-color: var(--brand); width: 100%; }
 .serving-now--idle { min-height: clamp(56px, 8.5vw, 152px); display: flex; align-items: center; }
 .serving-next { font-size: clamp(34px, 3.9vw, 56px); font-weight: 600; letter-spacing: -.04em; line-height: 1; color: var(--brand-ink); font-variant-numeric: tabular-nums; white-space: nowrap; }
 
-.side-panel { display: flex; flex-direction: column; min-height: 0; padding: clamp(22px, 2.4vw, 32px) clamp(20px, 2.2vw, 30px); border-radius: 36px; }
+.side-panel { display: flex; flex-direction: column; min-height: 0; padding: clamp(22px, 2.4vw, 32px) clamp(20px, 2.2vw, 30px); border-radius: var(--r-lg); }
 .side-panel__list { flex: 1; min-height: 0; margin-top: 20px; overflow-y: auto; padding-right: 4px; scrollbar-width: thin; }
 @media (max-width: 1079px) { .side-panel__list { max-height: 56vh; } }
 
@@ -1358,7 +1375,7 @@ input[type="range"] { accent-color: var(--brand); width: 100%; }
   max-height: 92dvh;
   overflow-y: auto;
   padding: clamp(24px, 3vw, 38px) clamp(20px, 3vw, 44px) clamp(28px, 3vw, 44px);
-  border-radius: 40px 40px 0 0;
+  border-radius: var(--r-xl) var(--r-xl) 0 0;
   background: linear-gradient(170deg, var(--paper), var(--canvas-warm));
   border: 1px solid var(--edge);
   box-shadow: 0 -30px 80px -30px rgba(80, 58, 38, .5);
@@ -1366,7 +1383,7 @@ input[type="range"] { accent-color: var(--brand); width: 100%; }
 }
 @media (min-width: 720px) {
   .scrim { align-items: center; }
-  .sheet { border-radius: 40px; animation: pop-in .34s var(--ease); }
+  .sheet { border-radius: var(--r-xl); animation: pop-in .34s var(--ease); }
 }
 .sheet__grip { width: 44px; height: 5px; border-radius: 5px; background: var(--line); margin: 0 auto 26px; }
 .sheet--dialog { width: min(440px, 100%); text-align: left; }
@@ -1375,7 +1392,7 @@ input[type="range"] { accent-color: var(--brand); width: 100%; }
 
 .settings-list {
   padding: 8px clamp(20px, 2.4vw, 26px);
-  border-radius: 30px;
+  border-radius: var(--r-lg);
   background: var(--glass-flat);
   border: 1px solid var(--edge);
   backdrop-filter: blur(24px);
@@ -1451,7 +1468,7 @@ input[type="range"] { accent-color: var(--brand); width: 100%; }
 .qr-frame {
   display: inline-block;
   padding: clamp(16px, 2vw, 26px);
-  border-radius: 36px;
+  border-radius: var(--r-lg);
   background: var(--paper);
   border: 1px solid var(--hairline);
   box-shadow: var(--shadow-soft);
@@ -1553,7 +1570,7 @@ input[type="range"] { accent-color: var(--brand); width: 100%; }
 .calling {
   /* Rings a few times to catch the eye, then holds a static outline so a customer
      who looks away is not left with a card pulsing at them indefinitely. */
-  border-radius: 32px;
+  border-radius: var(--r-lg);
   outline: 1.5px solid color-mix(in srgb, var(--brand) 60%, transparent);
   outline-offset: -1px;
   animation: ring 2s ease-out 4;

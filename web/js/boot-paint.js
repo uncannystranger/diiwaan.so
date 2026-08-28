@@ -52,6 +52,32 @@
        own defaults still render a complete page. */
   }
 
+  /* A way out, for a browser holding a version that will not let go.
+   *
+   * A worker that has cached a broken build can outlive every deploy meant to
+   * replace it — the person keeps being served the application from a month
+   * ago and there is nothing on the screen to say so. Visiting with ?reset
+   * unregisters every worker, empties every cache, and reloads clean. It is the
+   * one thing that always works, and it is worth having a name for:
+   *
+   *     https://diiwaan-so.vercel.app/?reset
+   */
+  try {
+    if (location.search.indexOf('reset') !== -1 && 'serviceWorker' in navigator) {
+      Promise.all([
+        navigator.serviceWorker.getRegistrations().then(function (all) {
+          return Promise.all(all.map(function (r) { return r.unregister(); }));
+        }).catch(function () {}),
+        (self.caches ? caches.keys().then(function (keys) {
+          return Promise.all(keys.map(function (k) { return caches.delete(k); }));
+        }) : Promise.resolve()).catch(function () {})
+      ]).then(function () {
+        location.replace(location.pathname);
+      });
+      return;
+    }
+  } catch (e) { /* nothing here is worth failing the boot over */ }
+
   /* Registered here rather than from the app, because the worker's job is to
      serve the app when the network will not. Waiting for app.js to arrive
      before installing the thing that rescues app.js is the wrong order. */
