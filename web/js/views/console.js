@@ -54,7 +54,11 @@ export function chrome(current, { business, user, role, connection, snapshot }) 
               aria-label="${esc(t('con.signOut'))}"
               title="${esc(t('con.signOut'))}">${icon('logout')}</button>
     </div>
-  </div>`;
+  </div>
+  ${business.onboarded ? '' : `
+  <a class="finish-setup" href="/setup">
+    <span>${t('con.finishSetup')}</span>
+  </a>`}`;
 }
 
 export function mobileNav(current) {

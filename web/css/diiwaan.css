@@ -3260,3 +3260,15 @@ html.retint, html.retint *, html.retint *::before, html.retint *::after {
 @media (max-width: 640px) {
   .entry-actions { max-width: none; }
 }
+
+/* A business can reach its desk before the wizard is finished, so the way back
+   into setup has to live here — visible, but never in the way. */
+.finish-setup {
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  padding: 9px 16px;
+  font-size: .82rem; letter-spacing: .01em;
+  color: var(--ink-2); text-decoration: none;
+  background: color-mix(in oklab, var(--accent) 9%, var(--surface));
+  border-bottom: 1px solid var(--line);
+}
+.finish-setup:hover { color: var(--ink); background: color-mix(in oklab, var(--accent) 14%, var(--surface)); }

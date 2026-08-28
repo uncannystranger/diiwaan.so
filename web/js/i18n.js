@@ -367,6 +367,8 @@ const DICT = {
     'setup.twoMinutes': 'Qiyaastii laba daqiiqo. Tababar looma baahna.',
     'setup.done': 'Waa dhammaatay',
     'setup.stepOf': 'Tallaabada {n} ee {total}',
+    'setup.skipToDesk': 'U gudub miiskaaga',
+    'con.finishSetup': 'Dhammee dejinta ganacsigaaga',
     'sign.backToBrand': 'Dib ugu noqo astaanta',
     'sign.print': 'Daabac',
 
@@ -922,6 +924,8 @@ const DICT = {
     'setup.twoMinutes': 'About two minutes. No training needed.',
     'setup.done': 'Done',
     'setup.stepOf': 'Step {n} of {total}',
+    'setup.skipToDesk': 'Go to my desk',
+    'con.finishSetup': 'Finish setting up your business',
     'sign.backToBrand': 'Back to brand',
     'sign.print': 'Print',
 

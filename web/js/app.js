@@ -11,6 +11,7 @@ import { enableAlerts, announce, holdScreenAwake, permission as notificationPerm
 import { buzz } from './haptics.js';
 import { t, toggleLanguage } from './i18n.js';
 import { landingView, reconnectView, signUpView, signInView, forgotView, resetView } from './views/auth.js';
+import { setupClaimsTheScreen } from './setup-gate.js';
 /* Only the entry screens are part of the first download. The console, the brand
    studio, the printed sign, the display and the customer page are each fetched
    the first time a route needs them — someone who opens the landing page and
@@ -315,14 +316,17 @@ async function resolveRoute() {
     loadAuxiliary();
     alignPresetColours();
   }
-  if (store.owner.business && !store.owner.business.onboarded) {
+  /* Setup is where a new business starts. It is not a room it is locked in.
+   *
+   * The rule itself lives in setup-gate.js, next to the account of why it is
+   * what it is. */
+  const opened = store.owner.business;
+  if (opened && !opened.onboarded && !ui.setupResumed) {
     // Resume where the owner left off rather than asking for the name again.
-    if (!ui.setupResumed) {
-      ui.setup.step = store.owner.business.name ? 1 : 0;
-      ui.setupResumed = true;
-    }
-    return { kind: 'setup' };
+    ui.setup.step = opened.name ? 1 : 0;
+    ui.setupResumed = true;
   }
+  if (setupClaimsTheScreen(opened, route.name)) return { kind: 'setup' };
 
   return { kind: CONSOLE_ROUTES.includes(route.name) ? route.name : 'queue' };
 }

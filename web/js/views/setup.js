@@ -140,6 +140,7 @@ export function setupView(ui, business, joinBase) {
     <div class="topbar">
       ${wordmark(16)}
       <div class="topbar__right">${themeButton()}
+        ${business?.name ? `<a class="btn btn--link" href="/app/queue">${t('setup.skipToDesk')}</a>` : ''}
         <button class="btn btn--link" data-action="sign-out">${t('con.signOut')}</button>
       </div>
     </div>

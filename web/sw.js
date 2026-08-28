@@ -42,7 +42,7 @@
                               screen blank
      the API                  never cached; queue state is the server's word */
 
-const CACHE = 'diiwaan-v21';
+const CACHE = 'diiwaan-v22';
 const NETWORK_DEADLINE_MS = 2500;
 
 /* Code this project authors and ships as a set. Kept as a predicate rather than
@@ -60,6 +60,7 @@ const SHELL = [
   '/css/diiwaan.css',
   '/js/boot-paint.js',
   '/js/app.js',
+  '/js/setup-gate.js',
   '/js/api.js',
   '/js/state.js',
   '/js/session.js',
