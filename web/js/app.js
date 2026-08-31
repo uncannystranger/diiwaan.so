@@ -2316,11 +2316,6 @@ document.addEventListener('visibilitychange', () => {
   render();
 });
 
-/* Whatever happens — a failed boot, a slow account load, a network that never
-   answers — something is on screen within a few seconds. The splash is a
-   loading state, never a destination.
-
-   This does not paint over an unresolved auth state; it ends it. abandonBoot()
 // Start initial navigation immediately so the page is painted on frame 0
 navigate();
 
