@@ -2356,6 +2356,22 @@ const ceiling = setTimeout(async () => {
   session.abandonBoot();
   await navigate();
 }, GIVE_UP_AT);
+const initialRoute = parseRoute();
+const isCustomerPrefix = initialRoute.name === 'j' || initialRoute.name === 't';
+const isDirectSlug = !isCustomerPrefix && Boolean(initialRoute.name) && !AUTH_ROUTES[initialRoute.name] && !CONSOLE_ROUTES.includes(initialRoute.name) && initialRoute.name !== 'setup' && !session.isSignedIn();
+
+if (isCustomerPrefix || isDirectSlug) {
+  const slug = isCustomerPrefix ? initialRoute.param : initialRoute.name;
+  if (slug) {
+    loadScreen('customer');
+    store.openCustomer(slug);
+    if (store.customer.view) {
+      resolvedRoute = { kind: 'customer', slug };
+      booted = true;
+      render();
+    }
+  }
+}
 
 try {
   await session.boot();
@@ -2370,21 +2386,15 @@ try {
 } finally {
   clearTimeout(failsafe);
 
-  /* A restore still running is the one case where boot deliberately returns
-     without an answer. Leave the boot screen up and let it finish; the phase
-     change re-resolves the route on its own, and the ceiling above is what
-     guarantees this ends. */
   if (session.isRestoring()) {
     session.onSessionChange(async function once() {
       if (session.isInitializing()) return;
       clearTimeout(ceiling);
-      if (!booted) await navigate();
+      if (!booted || resolvedRoute?.kind !== 'customer') await navigate();
     });
   } else {
     clearTimeout(ceiling);
-    // A boot that threw may have left the phase unset; nothing may render until
-    // it is decided, so decide it here rather than leaving the splash up.
     session.abandonBoot();
-    if (!booted) await navigate();
+    if (!booted || resolvedRoute?.kind !== 'customer') await navigate();
   }
 }

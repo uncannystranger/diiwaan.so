@@ -296,45 +296,38 @@ function withDeadline(promise, ms, reason) {
 }
 
 export async function boot() {
-  /* Everything the browser does with identity needs this handshake first. When
-     it fails — an unconfigured deployment, an API that cannot start, a network
-     that is down — every later call would fail too, with a message about
-     passwords that has nothing to do with the real problem. So the failure is
-     recorded here, once, in the words of what actually happened. */
-  try {
-    const response = await withDeadline(
-      fetch('/api/config'), 8000, 'The service took too long to answer.'
-    );
-    const body = await response.json();
-    if (!response.ok || !body.firebase?.apiKey) {
+  /* Config and session restore run in parallel so boot finishes in one network round trip */
+  const configPromise = (async () => {
+    try {
+      const response = await withDeadline(
+        fetch('/api/config'), 8000, 'The service took too long to answer.'
+      );
+      const body = await response.json();
+      if (!response.ok || !body.firebase?.apiKey) {
+        runtime = null;
+        firebase.configure('');
+        state.backendError = body?.detail || body?.error || t('auth.serviceReplied', { status: response.status });
+      } else {
+        runtime = body;
+        firebase.configure(body.firebase?.apiKey, body.firebase);
+        state.backendError = '';
+      }
+      return body;
+    } catch {
       runtime = null;
       firebase.configure('');
-      state.backendError = body?.detail || body?.error || t('auth.serviceReplied', { status: response.status });
-    } else {
-      runtime = body;
-      firebase.configure(body.firebase?.apiKey, body.firebase);
-      state.backendError = '';
+      state.backendError = t('auth.serviceUnreachable');
+      return null;
     }
-  } catch (error) {
-    runtime = null;
-    firebase.configure('');
-    state.backendError = t('auth.serviceUnreachable');
-  }
+  })();
 
-  /* Google returning with an answer. This has to be settled before the ordinary
-     session restore, or the app would render signed out for a moment and then
-     jump — and the query string has to be scrubbed either way, so a stale
-     authorisation code is never left sitting in the address bar or in history. */
+  /* Google returning with an answer */
   if (firebase.isGoogleCallback()) {
     try {
       const account = await withDeadline(firebase.finishGoogle(), 12000, 'timeout');
       await handOver(account.refreshToken);
       if (account.name) googleName = account.name;
     } catch (error) {
-      /* A cancelled consent screen is a decision, not a failure worth
-         reporting. Everything else says what happened, and the one that
-         matters most says what to do instead: an account already held by a
-         password will never open with Google, however many times it is tried. */
       if (!error?.cancelled) {
         oauthError = error?.reasonKey ? t(error.reasonKey) : t('auth.errGoogleFailed');
       }
@@ -342,9 +335,6 @@ export async function boot() {
     const intended = sessionStorage.getItem('diiwaan:after-google');
     sessionStorage.removeItem('diiwaan:after-google');
     const back = isSignedIn() ? (intended || 'queue') : 'signin';
-    /* The address bar is rewritten either way, so nothing the handler appended
-       is left sitting in history for the next person on this device. The desk
-       lives under /app now; the way in does not. */
     const CONSOLE = ['queue', 'overview', 'brand', 'settings', 'sign', 'display'];
     const path = back.startsWith('j/') || back.startsWith('t/')
       ? `/${back}`
@@ -352,37 +342,16 @@ export async function boot() {
     history.replaceState(null, '', path);
   }
 
-  /* A session restore that stalls must not hold the whole interface hostage —
-     but giving up waiting is not the same as finding out there is no session,
-     and boot used to conclude the second from the first. A restore slower than
-     this deadline left a signed-in owner on the public landing page, and left
-     them there: the restore completed a moment later and flipped the phase, but
-     nothing re-resolved the route, so the landing page simply stayed until the
-     person clicked something. Measured at an 11-second restore, the app showed
-     landing from 11.3s to 20s while the session endpoint answered 200.
-
-     So the two outcomes are now distinguished. A restore that answers is the
-     truth, either way. A restore that overruns is unknown, and `restore()`
-     keeps running — when it lands, adopt() flips the phase and the router
-     re-resolves, because app.js now treats a change in authenticated-ness as a
-     routing event rather than a repaint. */
   let pending = null;
   if (!isSignedIn()) {
     pending = restore();
-    await withDeadline(pending, 8000, 'timeout').catch(() => {});
   }
 
-  /* A restore still in flight is not an answer, and the public landing page is
-     not a neutral thing to show while waiting for one — an owner watching their
-     own dashboard get replaced by a marketing page has been told they are
-     signed out. So the phase stays 'initializing', which keeps the boot screen
-     up, and the pending restore settles it when it lands.
-     
-     This is not a delay papering over a race: nothing is being waited out. The
-     state is genuinely unknown, the interface says so with a loading screen,
-     and the moment it becomes known the router re-resolves. app.js keeps an
-     absolute ceiling so an answer that never comes still ends in a rendered
-     page rather than a spinner forever. */
+  await Promise.all([
+    configPromise,
+    pending ? withDeadline(pending, 8000, 'timeout').catch(() => {}) : Promise.resolve()
+  ]);
+
   if (pending && restoring) {
     pending.finally(() => { settlePhase(); emit(); });
     return runtime;
