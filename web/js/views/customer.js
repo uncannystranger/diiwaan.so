@@ -119,7 +119,7 @@ export function joinView(ui, { view, connection }) {
 
           <div class="grid" style="max-width:540px;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:14px">
             <div class="stat">
-              <div class="eyebrow">${t('cust.nowServing')}</div>
+              <div class="eyebrow"><i class="dot dot--live"></i>&nbsp; ${t('cust.nowServing')}</div>
               <b data-anim-key="serving">${view.serving ? esc(view.serving.label) : '—'}</b>
             </div>
             <div class="stat">
@@ -276,7 +276,7 @@ export function ticketView(ui, { view, connection }) {
             </div>
             <hr class="rule" />
             <div class="between">
-              <span style="font-size:13px;color:var(--ink-3)">${t('cust.nowServing')}</span>
+              <span style="font-size:13px;color:var(--ink-3)"><i class="dot dot--live"></i>&nbsp; ${t('cust.nowServing')}</span>
               <span class="numeral numeral--md numeral--brand" data-anim-key="serving">
                 ${view.serving ? esc(view.serving.label) : '—'}
               </span>

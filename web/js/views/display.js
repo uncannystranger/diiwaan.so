@@ -42,6 +42,10 @@ export function displayView(ui, { business, snapshot, joinBase }) {
         eye: qr.eyeColor || qr.foreground, logo: qr.logoOnCode ? business.logo : '',
         quiet: qr.quietZone, level: qr.errorCorrection
       })}
+    </div>
+    <div class="display-qr-badge">
+      <i class="dot dot--live"></i>
+      <span>${esc(qr.signInstruction || 'Ku sawir kamaradda taleefanka')}</span>
     </div>`;
 
   const nowServing = qr.displayShowServing !== false ? `

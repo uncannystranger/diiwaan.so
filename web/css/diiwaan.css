@@ -3274,12 +3274,51 @@ html.retint, html.retint *, html.retint *::before, html.retint *::after {
 .finish-setup:hover { color: var(--ink); background: color-mix(in oklab, var(--accent) 14%, var(--surface)); }
 
 /* ==========================================================================
-   EXPERIENCE ROADMAP STYLES
+   AESTHETIC & MINIMAL CUSTOMER EXPERIENCE
    ========================================================================== */
+
+/* Glassmorphism & Ambient Depth */
+.screen--customer .card {
+  background: color-mix(in srgb, var(--surface) 94%, transparent);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid color-mix(in srgb, var(--line) 85%, transparent);
+  box-shadow: 0 16px 36px -12px color-mix(in srgb, var(--brand) 12%, rgba(0,0,0,0.06));
+}
+
+/* Staggered Spring Entrances */
+.screen--customer .cust-head {
+  animation: fade-down 0.45s cubic-bezier(0.16, 1, 0.3, 1) backwards;
+}
+.screen--customer .customer-split > :first-child {
+  animation: fade-up 0.55s cubic-bezier(0.16, 1, 0.3, 1) 0.08s backwards;
+}
+.screen--customer .customer-split > :last-child {
+  animation: fade-up 0.6s cubic-bezier(0.16, 1, 0.3, 1) 0.16s backwards;
+}
+@keyframes fade-down {
+  from { opacity: 0; transform: translateY(-12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: translateY(0); }
+}
 
 /* W-1 The Walk-Away Ring */
 .walkaway-ring-wrap {
-  margin: 8px 0;
+  position: relative;
+  width: 170px;
+  height: 170px;
+  display: grid;
+  place-items: center;
+  margin: 6px 0;
+}
+.walkaway-ring {
+  position: absolute;
+  inset: 0;
+  transform: rotate(-90deg);
+  filter: drop-shadow(0 0 8px color-mix(in srgb, var(--brand) 20%, transparent));
 }
 .walkaway-ring__track {
   stroke: var(--tint, rgba(0,0,0,0.06));
@@ -3294,6 +3333,49 @@ html.retint, html.retint *, html.retint *::before, html.retint *::after {
 @keyframes badge-pulse-red {
   0%, 100% { opacity: 1; transform: scale(1); }
   50% { opacity: 0.82; transform: scale(1.03); }
+}
+
+/* The Live Journey Line */
+.meter--journey {
+  height: 8px;
+  border-radius: 6px;
+  background: var(--tint, rgba(0,0,0,0.06));
+  overflow: visible;
+  position: relative;
+}
+.meter--journey > i {
+  border-radius: 6px;
+  background: linear-gradient(90deg, var(--accent, #3AA69B), var(--brand));
+  transition: width 0.8s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.meter__pulse {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--brand);
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  box-shadow: 0 0 10px 2px var(--brand);
+  animation: line-pulse 2s infinite ease-in-out;
+}
+@keyframes line-pulse {
+  0%, 100% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+  50% { transform: translate(-50%, -50%) scale(1.3); opacity: 0.75; }
+}
+
+/* Interactive Tactile Chips */
+.chip {
+  transition: transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1), background 0.2s ease, border-color 0.2s ease;
+}
+.chip:active {
+  transform: scale(0.94);
+}
+.chip[aria-pressed="true"] {
+  background: color-mix(in srgb, var(--brand) 16%, var(--surface));
+  border-color: var(--brand);
+  color: var(--ink);
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--brand) 20%, transparent);
 }
 
 /* W-2 The Escalation Ladder Screen Flash */
@@ -3380,7 +3462,7 @@ html.retint, html.retint *, html.retint *::before, html.retint *::after {
   to { opacity: 1; transform: translateY(-1px); }
 }
 
-/* R-2 The Living Screen */
+/* In-Store Living Display Screen & Ambient QR Glow */
 .living-display {
   animation: ambient-drift 60s ease-in-out infinite alternate;
 }
@@ -3388,12 +3470,16 @@ html.retint, html.retint *, html.retint *::before, html.retint *::after {
   0% { background-position: 0% 0%; }
   100% { background-position: 100% 100%; }
 }
+.display__code {
+  position: relative;
+  transition: transform 0.4s ease, box-shadow 0.4s ease;
+}
 .living-qr-breath {
   animation: qr-breath 6s ease-in-out infinite alternate;
 }
 @keyframes qr-breath {
   0% { transform: scale(1); box-shadow: var(--shadow-panel); }
-  100% { transform: scale(1.02); box-shadow: 0 16px 40px -8px color-mix(in srgb, var(--brand) 22%, transparent); }
+  100% { transform: scale(1.02); box-shadow: 0 20px 48px -8px color-mix(in srgb, var(--brand) 28%, transparent); }
 }
 .flip-board {
   animation: flip-board 0.45s cubic-bezier(0.34, 1.56, 0.64, 1);
@@ -3401,6 +3487,21 @@ html.retint, html.retint *, html.retint *::before, html.retint *::after {
 @keyframes flip-board {
   0% { opacity: 0; transform: translateY(-12px) scale(0.96); }
   100% { opacity: 1; transform: none; }
+}
+
+.display-qr-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 14px;
+  padding: 8px 18px;
+  border-radius: 24px;
+  font-size: calc(clamp(12px, 1.1vw, 17px) * var(--display-scale, 1));
+  font-weight: 500;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  color: var(--ink-2);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.04);
 }
 
 /* O-1 Rhythm Heatmap */
