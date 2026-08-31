@@ -224,6 +224,19 @@ export function ticketView(ui, { view, connection }) {
 
           ${called && page.calledMessage ? `<p class="lead">${esc(page.calledMessage)}</p>` : ''}
 
+          <!-- The Line: Journey Progress Line -->
+          ${!called && page.showProgress !== false ? `
+            <div class="queue-line" style="width:100%;max-width:340px;margin:4px 0">
+              <div class="meter meter--journey" data-anim-key="progress">
+                <i style="width:${progress}%"></i>
+                <span class="meter__pulse" style="left:${progress}%"></span>
+              </div>
+              <div class="queue-line__ends">
+                <span>${esc(t('cust.joined'))}</span>
+                <span>${esc(t('cust.yourNumber'))}</span>
+              </div>
+            </div>` : ''}
+
           <!-- W-2 The Escalation Ladder Reply -->
           ${called ? `
             <div class="escalation-replies mt-12 stack gap-8" style="width:100%;max-width:320px">

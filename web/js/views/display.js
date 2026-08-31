@@ -27,19 +27,6 @@ function displayChrome(ui) {
   </div>`;
 }
 
-function currentPrayerWindow() {
-  const now = new Date();
-  const minutes = now.getHours() * 60 + now.getMinutes();
-  const prayers = [
-    { name: 'Fajr (Subax)', start: 4 * 60 + 30, end: 5 * 60 + 15 },
-    { name: 'Dhuhr (Duhur)', start: 11 * 60 + 50, end: 12 * 60 + 35 },
-    { name: 'Asr (Casir)', start: 15 * 60 + 10, end: 15 * 60 + 55 },
-    { name: 'Maghrib (Maghrib)', start: 18 * 60 + 0, end: 18 * 60 + 45 },
-    { name: 'Isha (Cisha)', start: 19 * 60 + 15, end: 19 * 60 + 55 }
-  ];
-  return prayers.find(p => minutes >= p.start && minutes <= p.end);
-}
-
 export function displayView(ui, { business, snapshot, joinBase }) {
   const qr = business.qrSettings;
   const queue = snapshot?.queue;
@@ -47,7 +34,6 @@ export function displayView(ui, { business, snapshot, joinBase }) {
   const waiting = snapshot?.waiting || [];
   const joinUrl = `${joinBase}/j/${business.slug}`;
   const layout = qr.displayLayout || 'split';
-  const prayer = currentPrayerWindow();
 
   const code = `
     <div class="display__code living-qr-breath" style="background:${esc(qr.background)}">
@@ -57,11 +43,6 @@ export function displayView(ui, { business, snapshot, joinBase }) {
         quiet: qr.quietZone, level: qr.errorCorrection
       })}
     </div>`;
-
-  const prayerBanner = prayer ? `
-    <div class="display__prayer-held note note--alert" style="margin:0 clamp(16px, 3vw, 40px) 16px; text-align:center; font-weight:500">
-      ${t('display.prayerHeld', { prayer: prayer.name })}
-    </div>` : '';
 
   const nowServing = qr.displayShowServing !== false ? `
     <div class="display__serving">
@@ -89,13 +70,11 @@ export function displayView(ui, { business, snapshot, joinBase }) {
      leads with who is being served and keeps the code as a corner. */
   const body = layout === 'code'
     ? `<div class="display__stage display__stage--code">
-         ${prayerBanner}
          ${code}
          <p class="display__instruction">${esc(qr.signInstruction)}</p>
        </div>`
     : layout === 'board'
       ? `<div class="display__stage display__stage--board">
-           ${prayerBanner}
            ${nowServing}
            ${facts}
            <div class="display__corner">
@@ -105,7 +84,6 @@ export function displayView(ui, { business, snapshot, joinBase }) {
          </div>`
       : `<div class="display__stage display__stage--split">
            <div class="display__half">
-             ${prayerBanner}
              ${nowServing}
              ${facts}
            </div>

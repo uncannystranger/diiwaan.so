@@ -23,18 +23,10 @@
     // the remembered paint is filed under the queue it belongs to.
     var rawPath = (location.hash.replace(/^#\/?/, '') || location.pathname.replace(/^\/+/, '')).split(/[?#]/)[0];
     var path = rawPath.split('/');
-    var customer = (path[0] === 'j' || path[0] === 't') && path[1];
-
-    /* The signed-out screens are Diiwaan's own, not a business's. Restoring the
-       last account's colours here painted the landing page in whatever palette
-       that owner had chosen. */
-    /* The front door is navy and white, and it must be that from the first
-       frame rather than a moment later — otherwise a reload of the sign-in page
-       paints the last owner's amber and then corrects itself, which is the
-       flash this file exists to prevent. app.js sets the same attribute once it
-       runs; this is only about being early. */
-    var entry = { '': 1, signup: 1, signin: 1, forgot: 1, reset: 1 };
+    var entry = { '': 1, signup: 1, signin: 1, forgot: 1, reset: 1, setup: 1 };
+    var customer = (path[0] === 'j' || path[0] === 't') ? path[1] : (path[0] && !entry[path[0]] && path[0] !== 'app' ? path[0] : null);
     var hasOwner = Boolean(localStorage.getItem('diiwaan:business') || localStorage.getItem('diiwaan:paint:owner'));
+
     if (!customer && Object.prototype.hasOwnProperty.call(entry, path[0])) {
       if (path[0] === '' && hasOwner) {
         root.setAttribute('data-scope', 'app');
@@ -46,7 +38,7 @@
       root.setAttribute('data-scope', 'app');
     }
 
-    var key = customer ? 'q:' + path[1] : 'owner';
+    var key = customer ? 'q:' + customer : 'owner';
 
     var saved = JSON.parse(localStorage.getItem('diiwaan:paint:' + key) || 'null');
     if (saved && typeof saved.style === 'string') {

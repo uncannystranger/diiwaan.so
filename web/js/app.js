@@ -239,13 +239,17 @@ let currentBusinessId = '';
 async function resolveRoute() {
   const route = parseRoute();
 
-  if (route.name === 'j' || route.name === 't') {
-    if (route.param && route.param !== currentSlug) {
-      currentSlug = route.param;
+  const isCustomerPrefix = route.name === 'j' || route.name === 't';
+  const isDirectSlug = !isCustomerPrefix && Boolean(route.name) && !AUTH_ROUTES[route.name] && !CONSOLE_ROUTES.includes(route.name) && route.name !== 'setup' && !session.isSignedIn();
+
+  if (isCustomerPrefix || isDirectSlug) {
+    const slug = isCustomerPrefix ? route.param : route.name;
+    if (slug && (slug !== currentSlug || !store.customer.view)) {
+      currentSlug = slug;
       store.closeStream();
-      await store.openCustomer(route.param);
+      await store.openCustomer(slug);
     }
-    return { kind: 'customer' };
+    return { kind: 'customer', slug };
   }
 
   currentSlug = '';
@@ -763,11 +767,14 @@ async function navigate() {
    not a new one. Adding a history entry would make Back undo the correction and
    land straight back on the wrong URL. */
 function canonicalise(route) {
-  /* The customer's own routes carry a slug; canonicalise strips any legacy hash */
+  /* The customer's own routes carry a slug; canonicalise strips any legacy hash or sets clean /j/slug */
   if (route.kind === 'customer') {
-    if (location.hash) {
-      const slug = store.customer.slug || parseRoute().param;
-      if (slug) history.replaceState(null, '', `/j/${slug}${location.search}`);
+    const slug = route.slug || store.customer.slug || parseRoute().param || parseRoute().name;
+    if (slug && !['j', 't', 'app'].includes(slug)) {
+      const target = `/j/${slug}`;
+      if (location.hash || (location.pathname !== target && location.pathname !== `/t/${slug}`)) {
+        history.replaceState(null, '', `${target}${location.search}`);
+      }
     }
     return;
   }

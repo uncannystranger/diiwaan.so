@@ -51,7 +51,7 @@ const publicBusiness = business => ({
   city: business.city || '',
   address: business.address || '',
   phone: business.phone || '',
-  logo: business.logo || '',
+  logo: business.logo || business.branding?.logo || '',
   description: business.description || '',
   branding: { ...DEFAULT_BRANDING, ...(business.branding || {}) },
   experience: { ...DEFAULT_CUSTOMER_EXPERIENCE, ...(business.customerExperience || {}) },
