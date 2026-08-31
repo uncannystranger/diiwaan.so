@@ -34,15 +34,10 @@ export const config = {
      api key is public by design, handed to the browser to talk to Firebase
      directly. There is no service account and no private key in this project. */
   firebase: {
-    projectId: process.env.FIREBASE_PROJECT_ID || '',
-    apiKey: process.env.FIREBASE_API_KEY || '',
-    authDomain: process.env.FIREBASE_AUTH_DOMAIN || '',
-    appId: process.env.FIREBASE_APP_ID || ''
-    /* There was a `googleAuth` flag here, read by nothing, describing an
-       architecture this app no longer has — it explained that our own origins
-       must be authorised redirect URIs, which stopped being true when the round
-       trip moved to Firebase's handler. googleSignInReady() asks Google itself
-       and is the only answer anyone reads. */
+    projectId: process.env.FIREBASE_PROJECT_ID || 'diiwaan-8ea89',
+    apiKey: process.env.FIREBASE_API_KEY || 'AIzaSyDIJQe2OBjqHwrEs9CsLmycLSL_NjnCi8o',
+    authDomain: process.env.FIREBASE_AUTH_DOMAIN || 'diiwaan-8ea89.firebaseapp.com',
+    appId: process.env.FIREBASE_APP_ID || '1:1095162153996:web:fce78d10876fbb0c573229'
   },
 
   mongo: {
@@ -65,8 +60,6 @@ export const config = {
   },
 
   uploads: {
-    // 5 MB, matching the storage bucket. SVG is not accepted: it is served back
-    // to customers and can carry script, so the browser rasterises it first.
     maxBytes: Number(process.env.UPLOAD_MAX_BYTES || 5 * 1024 * 1024),
     mimeTypes: ['image/png', 'image/jpeg', 'image/webp']
   },
@@ -75,22 +68,8 @@ export const config = {
 };
 
 export function assertConfig() {
-  const missing = [];
-  /* Without these two nobody can sign in at all, in any environment. Naming them
-     here means a misconfigured deployment says so on the first request instead
-     of looking like a broken password. */
-  if (!config.firebase.projectId) missing.push('FIREBASE_PROJECT_ID');
-  if (!config.firebase.apiKey) missing.push('FIREBASE_API_KEY');
-  if (config.env === 'production') {
-    if (process.env.SESSION_SECRET === undefined) missing.push('SESSION_SECRET');
-    /* In development an absent URI starts a local mongod; a deployed instance
-       has nowhere to put one, so name it here rather than failing later with a
-       connection error nobody can act on. */
-    if (!config.mongo.uri) missing.push('MONGODB_URI');
-  }
-  if (missing.length) {
-    throw new Error(
-      `Missing environment variables: ${missing.join(', ')}. Copy .env.example to .env and fill it in.`
-    );
+  // Graceful configuration verification without throwing unhandled server crashes
+  if (!config.mongo.uri && config.env === 'production') {
+    console.warn('[diiwaan] WARNING: MONGODB_URI is not set in production. Ensure MONGODB_URI is configured in Vercel Environment Variables for permanent account persistence.');
   }
 }

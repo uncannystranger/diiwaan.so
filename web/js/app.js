@@ -2339,8 +2339,8 @@ document.addEventListener('visibilitychange', () => {
  * At the second there is no more waiting to do. Whatever is outstanding is
  * treated as failed and the interface renders, because a spinner that never
  * ends is the one outcome with no recovery at all. */
-const RENDER_AT = 10_000;
-const GIVE_UP_AT = 25_000;
+const RENDER_AT = 1500;
+const GIVE_UP_AT = 4000;
 
 const failsafe = setTimeout(async () => {
   if (booted) return;
