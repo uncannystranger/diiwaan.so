@@ -728,12 +728,6 @@ function scalePreviews() {
 window.addEventListener('resize', scalePreviews);
 
 async function navigate() {
-  /* Nothing may be resolved from an identity that is still being established.
-     Boot calls navigate() itself once it has finished, so an early call here —
-     a hashchange arriving mid-boot, say — is dropped rather than answered with
-     a guess that would have to be corrected a moment later. */
-  if (session.isInitializing()) return;
-
   const next = await resolveRoute();
   // The screen's module is fetched before it is rendered, so render() stays
   // synchronous and never paints a half-loaded view.
@@ -2327,87 +2321,23 @@ document.addEventListener('visibilitychange', () => {
    loading state, never a destination.
 
    This does not paint over an unresolved auth state; it ends it. abandonBoot()
-   settles the phase to what is actually known, so the render that follows is
-   made from a decided state rather than from a guess that beat the clock. */
-/* Two limits, because "slow" and "never" deserve different answers.
- *
- * At the first, boot has overrun and we render whatever is known — unless a
- * session restore is still in flight, in which case the honest screen is still
- * the loading one: showing the landing page to somebody who turns out to be
- * signed in is worse than making them wait another moment.
- *
- * At the second there is no more waiting to do. Whatever is outstanding is
- * treated as failed and the interface renders, because a spinner that never
- * ends is the one outcome with no recovery at all. */
-const RENDER_AT = 1500;
-const GIVE_UP_AT = 4000;
+// Start initial navigation immediately so the page is painted on frame 0
+navigate();
 
-const failsafe = setTimeout(async () => {
-  if (booted) return;
-  if (session.isRestoring()) return;   // the ceiling below still applies
-  console.warn('[diiwaan] boot overran; resolving without it');
-  session.abandonBoot();
-  await navigate();
-}, RENDER_AT);
-
-const ceiling = setTimeout(async () => {
-  if (booted) return;
-  console.warn('[diiwaan] session restore never answered; rendering signed out');
-  session.abandonBoot();
-  await navigate();
-}, GIVE_UP_AT);
-const initialRoute = parseRoute();
-const isCustomerPrefix = initialRoute.name === 'j' || initialRoute.name === 't';
-const isDirectSlug = !isCustomerPrefix && Boolean(initialRoute.name) && !AUTH_ROUTES[initialRoute.name] && !CONSOLE_ROUTES.includes(initialRoute.name) && initialRoute.name !== 'setup' && !session.isSignedIn();
-
-// Instant 0ms Paint: If customer route, render immediately from cache
-if (isCustomerPrefix || isDirectSlug) {
-  const slug = isCustomerPrefix ? initialRoute.param : initialRoute.name;
-  if (slug) {
-    loadScreen('customer');
-    store.openCustomer(slug);
-    if (store.customer.view) {
-      resolvedRoute = { kind: 'customer', slug };
-      booted = true;
-      render();
+// Perform session boot in background without blocking initial paint
+(async () => {
+  try {
+    await session.boot();
+    if (session.isSignedIn()) {
+      await Promise.race([
+        store.loadAccount(),
+        new Promise(resolve => setTimeout(resolve, 3000))
+      ]);
     }
-  }
-} else if (CONSOLE_ROUTES.includes(initialRoute.name)) {
-  // Instant 0ms Paint: If dashboard route, render immediately from cache
-  const rememberedId = localStorage.getItem('diiwaan:business');
-  if (rememberedId) {
-    loadScreen(initialRoute.name);
-    store.openBusiness(rememberedId);
-    if (store.owner.business) {
-      resolvedRoute = { kind: initialRoute.name };
-      booted = true;
-      render();
-    }
-  }
-}
-
-try {
-  await session.boot();
-  if (session.isSignedIn()) {
-    await Promise.race([
-      store.loadAccount(),
-      new Promise(resolve => setTimeout(resolve, 8000))
-    ]);
-  }
-} catch (error) {
-  console.error('Diiwaan could not start cleanly', error);
-} finally {
-  clearTimeout(failsafe);
-
-  if (session.isRestoring()) {
-    session.onSessionChange(async function once() {
-      if (session.isInitializing()) return;
-      clearTimeout(ceiling);
-      if (!booted || resolvedRoute?.kind !== 'customer') await navigate();
-    });
-  } else {
-    clearTimeout(ceiling);
+  } catch (error) {
+    console.error('Diiwaan could not start cleanly', error);
+  } finally {
     session.abandonBoot();
-    if (!booted || resolvedRoute?.kind !== 'customer') await navigate();
+    await navigate();
   }
-}
+})();
