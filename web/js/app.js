@@ -979,9 +979,7 @@ function announceTurn() {
   }
   lastAnnounced = stage;
 
-  // The visual state is always shown; sound and vibration only once the customer
-  // has asked for alerts.
-  if (!ui.notifyOn) return;
+  // Visual state, in-page harmonic chime, and multi-pulse haptics
   announce({
     title: view.business.name,
     body: stage === 'called'
@@ -989,6 +987,9 @@ function announceTurn() {
       : `${ticket.label} — you are nearly up.`,
     called: stage === 'called'
   });
+  if (stage === 'called') {
+    speakTicket(ticket.label, { language: document.documentElement.lang || 'so' });
+  }
 }
 
 /* ---------- helpers ---------- */
@@ -1790,6 +1791,7 @@ const actions = {
   },
   async 'join-queue'(event, form) {
     event.preventDefault();
+    if (ui.busy) return;
     const name = form.querySelector('#join-name').value.trim();
     const phone = form.querySelector('#join-phone').value.trim();
     // Carried to the server, which decides what they mean.

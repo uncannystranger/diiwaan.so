@@ -149,7 +149,10 @@
    version of this block sat after the link and pinned the page to a dark
    ground, which broke light mode outright. */
 html { background: #04121D; color: #FBFCFA; }
+@media (prefers-color-scheme: light) { html { background: #FBFCFA; color: #04121D; } }
+@media (prefers-color-scheme: dark) { html { background: #04121D; color: #FBFCFA; } }
 html[data-theme="light"] { background: #FBFCFA; color: #04121D; }
+html[data-theme="dark"] { background: #04121D; color: #FBFCFA; }
 body { margin: 0; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; }
 
 .boot { min-height: 100dvh; display: grid; place-items: center; align-content: center; gap: 18px; }

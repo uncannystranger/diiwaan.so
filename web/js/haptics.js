@@ -20,7 +20,7 @@ const PATTERNS = {
   soon: [30, 80, 30],
   /* Being called is the strongest thing this app ever asks for: a long, rising
      pattern that carries through a pocket, repeated so it is not missed. */
-  turn: [90, 90, 90, 90, 160, 120, 220, 140, 300]
+  turn: [120, 80, 120, 80, 200, 100, 350, 150, 450]
 };
 
 function detect() {

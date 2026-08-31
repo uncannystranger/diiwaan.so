@@ -76,37 +76,61 @@ export function announce({ title, body, called }) {
    audio context is muted by that switch and no API changes it. So the alert
    never relies on sound alone — the vibration, the ringing card and the wake
    lock all carry it, and the tone is a bonus on devices that allow it. */
+let primedContext = null;
+
+export function primeAudio() {
+  try {
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    if (!Ctx) return;
+    if (!primedContext || primedContext.state === 'closed') {
+      primedContext = new Ctx();
+    }
+    if (primedContext.state === 'suspended') {
+      primedContext.resume().catch(() => {});
+    }
+  } catch {}
+}
+
+if (typeof window !== 'undefined') {
+  const handler = () => {
+    primeAudio();
+    window.removeEventListener('pointerdown', handler);
+    window.removeEventListener('keydown', handler);
+    window.removeEventListener('touchstart', handler);
+  };
+  window.addEventListener('pointerdown', handler, { passive: true });
+  window.addEventListener('keydown', handler, { passive: true });
+  window.addEventListener('touchstart', handler, { passive: true });
+}
+
 export function chime({ urgent = false } = {}) {
   try {
     const Ctx = window.AudioContext || window.webkitAudioContext;
     if (!Ctx) return;
-    const context = new Ctx();
-    // Some browsers hand back a suspended context outside a gesture.
+    const context = (primedContext && primedContext.state !== 'closed') ? primedContext : new Ctx();
     context.resume?.().catch(() => {});
 
     const now = context.currentTime;
-    const peak = urgent ? 0.5 : 0.22;
-    // A rising three-note figure, repeated twice when it is someone's turn.
+    const peak = urgent ? 0.65 : 0.28;
+    // Harmonic urgent chord progression for ringing state (C5 -> G5 -> C6 -> E6)
     const notes = urgent
-      ? [880, 1174, 1568, 880, 1174, 1568]
+      ? [523.25, 783.99, 1046.50, 1318.51, 523.25, 783.99, 1046.50, 1318.51]
       : [880, 1320];
-    const step = urgent ? 0.16 : 0.18;
+    const step = urgent ? 0.14 : 0.18;
 
     notes.forEach((frequency, index) => {
-      const at = now + index * step + (urgent && index === 3 ? 0.28 : 0);
+      const at = now + index * step + (urgent && index === 4 ? 0.25 : 0);
       const oscillator = context.createOscillator();
       const gain = context.createGain();
-      // A touch of triangle carries further through room noise than a pure sine.
       oscillator.type = urgent ? 'triangle' : 'sine';
       oscillator.frequency.value = frequency;
       gain.gain.setValueAtTime(0.0001, at);
-      gain.gain.exponentialRampToValueAtTime(peak, at + 0.03);
-      gain.gain.exponentialRampToValueAtTime(0.0001, at + (urgent ? 0.42 : 0.32));
+      gain.gain.exponentialRampToValueAtTime(peak, at + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001, at + (urgent ? 0.40 : 0.30));
       oscillator.connect(gain).connect(context.destination);
       oscillator.start(at);
-      oscillator.stop(at + (urgent ? 0.44 : 0.34));
+      oscillator.stop(at + (urgent ? 0.42 : 0.32));
     });
-    setTimeout(() => context.close(), urgent ? 2600 : 1200);
   } catch { /* audio is a bonus, never a requirement */ }
 }
 

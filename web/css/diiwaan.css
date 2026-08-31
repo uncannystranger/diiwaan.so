@@ -2235,7 +2235,6 @@ html.retint, html.retint *, html.retint *::before, html.retint *::after {
   padding: clamp(14px, 3vw, 24px) 20px clamp(6px, 2vw, 14px);
   animation: cust-head-in .34s var(--ease) backwards;
 }
-.cust-head .logo { animation: cust-mark-in .5s var(--ease) backwards; }
 .cust-head__name {
   font-family: Lora, Georgia, serif;
   font-size: clamp(21px, 5.2vw, 30px);
@@ -2243,8 +2242,17 @@ html.retint, html.retint *, html.retint *::before, html.retint *::after {
   line-height: 1.15;
   margin: 0;
   letter-spacing: -.01em;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  max-width: 100%;
 }
-.cust-head__where { margin: 0; font-size: 13px; color: var(--ink-4); }
+.cust-head__where {
+  margin: 0;
+  font-size: 13px;
+  color: var(--ink-4);
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
 
 @keyframes cust-head-in { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
 @keyframes cust-mark-in { from { opacity: 0; transform: scale(.86); } to { opacity: 1; transform: none; } }
