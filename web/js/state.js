@@ -203,30 +203,36 @@ export async function openBusiness(businessId) {
   owner.loading = !cached;
   notify();
 
-  try {
-    const [{ business }, snapshot, { services }] = await Promise.all([
-      api.business(businessId),
-      api.queue(businessId),
-      api.services(businessId)
-    ]);
-    /* A second openBusiness overtook this one. Its business is the one on
-       screen, and writing ours would put a different tenant's queue under it. */
-    if (!ownerCurrent(generation)) return;
-    owner.business = business;
-    owner.snapshot = snapshot;
-    owner.services = services;
-    owner.error = null;
-    write(`${CACHE_PREFIX}${businessId}`, { business, snapshot, services });
-    startStream(businessId, generation);
-  } catch (error) {
-    if (!ownerCurrent(generation)) return;
-    owner.error = error;
-    if (error.offline) owner.connection = 'offline';
-  } finally {
-    if (ownerCurrent(generation)) {
-      owner.loading = false;
-      notify();
+  const fetchPromise = (async () => {
+    try {
+      const [{ business }, snapshot, { services }] = await Promise.all([
+        api.business(businessId),
+        api.queue(businessId),
+        api.services(businessId)
+      ]);
+      /* A second openBusiness overtook this one. Its business is the one on
+         screen, and writing ours would put a different tenant's queue under it. */
+      if (!ownerCurrent(generation)) return;
+      owner.business = business;
+      owner.snapshot = snapshot;
+      owner.services = services;
+      owner.error = null;
+      write(`${CACHE_PREFIX}${businessId}`, { business, snapshot, services });
+      startStream(businessId, generation);
+    } catch (error) {
+      if (!ownerCurrent(generation)) return;
+      owner.error = error;
+      if (error.offline) owner.connection = 'offline';
+    } finally {
+      if (ownerCurrent(generation)) {
+        owner.loading = false;
+        notify();
+      }
     }
+  })();
+
+  if (!cached) {
+    await fetchPromise;
   }
 }
 
@@ -428,10 +434,16 @@ export async function openCustomer(slug) {
   customer.loading = !cached;
   notify();
 
-  await refreshCustomer();
-  if (!customerCurrent(generation)) return;
-  startCustomerStream(slug, generation);
-  flushPending();
+  const refreshPromise = (async () => {
+    await refreshCustomer();
+    if (!customerCurrent(generation)) return;
+    startCustomerStream(slug, generation);
+    flushPending();
+  })();
+
+  if (!cached) {
+    await refreshPromise;
+  }
 }
 
 export async function refreshCustomer() {

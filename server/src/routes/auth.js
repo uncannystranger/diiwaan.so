@@ -13,12 +13,11 @@ import {
   exchangeRefreshToken, requireClientHeader
 } from '../lib/session.js';
 
-const router = Router();
+export const sessionRouter = Router();
 
 const sessionLimiter = rateLimit({ windowMs: 60_000, limit: 30, standardHeaders: 'draft-7', legacyHeaders: false });
 
 /* ---------- session ----------
-
    The browser signs in with Firebase directly, then hands the refresh token here
    once. From that moment the long-lived secret lives in an HttpOnly cookie and
    the tab keeps only an in-memory access token, which this endpoint re-mints. */
@@ -30,7 +29,7 @@ const sessionPayload = data => ({
 });
 
 /** Hands over a fresh sign-in: stores the refresh token, returns an access token. */
-router.post('/session', sessionLimiter, requireClientHeader, async (req, res, next) => {
+sessionRouter.post('/session', sessionLimiter, requireClientHeader, async (req, res, next) => {
   try {
     const refreshToken = String(req.body?.refreshToken || '');
     if (!refreshToken) throw new HttpError(400, 'No session to store.');
@@ -41,7 +40,7 @@ router.post('/session', sessionLimiter, requireClientHeader, async (req, res, ne
 });
 
 /** Restores a session on page load, or renews one that is about to expire. */
-router.get('/session', sessionLimiter, requireClientHeader, async (req, res, next) => {
+sessionRouter.get('/session', sessionLimiter, requireClientHeader, async (req, res, next) => {
   try {
     const stored = readSessionCookie(req);
     if (!stored) return res.status(204).end();
@@ -50,29 +49,20 @@ router.get('/session', sessionLimiter, requireClientHeader, async (req, res, nex
       setSessionCookie(res, data.refresh_token);
       res.json(sessionPayload(data));
     } catch (error) {
-      /* The cookie is only destroyed when Google has actually said this session
-         is over. It used to go on any failure at all, which meant a rate limit
-         or a bad minute at Google signed somebody out for good — they refreshed
-         and met the landing page, with a thirty-day session thrown away for a
-         problem that had nothing to do with them.
-
-         A transient failure keeps the cookie and answers 503, which the browser
-         reads as "could not find out" rather than "logged out". */
       if (!error?.transient) clearSessionCookie(res);
       throw error;
     }
   } catch (error) { next(error); }
 });
 
-router.delete('/session', sessionLimiter, requireClientHeader, async (req, res, next) => {
+sessionRouter.delete('/session', sessionLimiter, requireClientHeader, async (req, res, next) => {
   try {
     clearSessionCookie(res);
-    /* Dropping the cookie is the sign-out. Firebase has no revoke endpoint that
-       works without a service account, and the id token it held expires within
-       the hour on its own — so there is nothing to wait for on the way out. */
     res.status(204).end();
   } catch (error) { next(error); }
 });
+
+const router = Router();
 
 const profileSchema = z.object({
   name: z.string().trim().max(80).optional(),

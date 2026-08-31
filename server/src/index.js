@@ -12,7 +12,7 @@ import { subscriberCounts } from './services/realtime.js';
 import { connect, disconnect } from './db.js';
 import { withUser } from './middleware/auth.js';
 import { errorHandler, notFound } from './lib/errors.js';
-import authRoutes from './routes/auth.js';
+import authRoutes, { sessionRouter } from './routes/auth.js';
 import businessRoutes from './routes/businesses.js';
 import publicRoutes from './routes/public.js';
 import uploadRoutes from './routes/uploads.js';
@@ -197,10 +197,12 @@ export async function createApp() {
     });
   });
 
+  /* Public runtime configuration and session endpoints that do not need MongoDB.
+     Answering these immediately prevents cold start connection stalls. */
+  app.use('/api/auth', sessionRouter);
+
   /* The database is opened on the first request that needs it, not at boot.
-     /api/config is what the browser waits on before it can render anything, and
-     it is answered entirely from memory — so a cold start no longer holds the
-     loading screen open while a cluster handshake completes. */
+     /api/config and /api/auth/session are answered entirely without waiting on Mongo. */
   app.use('/api', async (req, res, next) => {
     try {
       await connect();

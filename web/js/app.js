@@ -2360,6 +2360,7 @@ const initialRoute = parseRoute();
 const isCustomerPrefix = initialRoute.name === 'j' || initialRoute.name === 't';
 const isDirectSlug = !isCustomerPrefix && Boolean(initialRoute.name) && !AUTH_ROUTES[initialRoute.name] && !CONSOLE_ROUTES.includes(initialRoute.name) && initialRoute.name !== 'setup' && !session.isSignedIn();
 
+// Instant 0ms Paint: If customer route, render immediately from cache
 if (isCustomerPrefix || isDirectSlug) {
   const slug = isCustomerPrefix ? initialRoute.param : initialRoute.name;
   if (slug) {
@@ -2367,6 +2368,18 @@ if (isCustomerPrefix || isDirectSlug) {
     store.openCustomer(slug);
     if (store.customer.view) {
       resolvedRoute = { kind: 'customer', slug };
+      booted = true;
+      render();
+    }
+  }
+} else if (CONSOLE_ROUTES.includes(initialRoute.name)) {
+  // Instant 0ms Paint: If dashboard route, render immediately from cache
+  const rememberedId = localStorage.getItem('diiwaan:business');
+  if (rememberedId) {
+    loadScreen(initialRoute.name);
+    store.openBusiness(rememberedId);
+    if (store.owner.business) {
+      resolvedRoute = { kind: initialRoute.name };
       booted = true;
       render();
     }

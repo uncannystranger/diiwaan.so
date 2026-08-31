@@ -42,8 +42,8 @@
                               screen blank
      the API                  never cached; queue state is the server's word */
 
-const CACHE = 'diiwaan-v29';
-const NETWORK_DEADLINE_MS = 800;
+const CACHE = 'diiwaan-v30';
+const NETWORK_DEADLINE_MS = 600;
 
 /* Code this project authors and ships as a set. Kept as a predicate rather than
    a list so a new view or helper is covered the day it is added — forgetting to
