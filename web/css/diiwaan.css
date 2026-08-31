@@ -3272,3 +3272,221 @@ html.retint, html.retint *, html.retint *::before, html.retint *::after {
   border-bottom: 1px solid var(--line);
 }
 .finish-setup:hover { color: var(--ink); background: color-mix(in oklab, var(--accent) 14%, var(--surface)); }
+
+/* ==========================================================================
+   EXPERIENCE ROADMAP STYLES
+   ========================================================================== */
+
+/* W-1 The Walk-Away Ring */
+.walkaway-ring-wrap {
+  margin: 8px 0;
+}
+.walkaway-ring__track {
+  stroke: var(--tint, rgba(0,0,0,0.06));
+}
+.walkaway-ring__fill {
+  transform-origin: center;
+  stroke-linecap: round;
+}
+.pulse-red {
+  animation: badge-pulse-red 1.8s ease-in-out infinite;
+}
+@keyframes badge-pulse-red {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.82; transform: scale(1.03); }
+}
+
+/* W-2 The Escalation Ladder Screen Flash */
+.screen--pulse {
+  animation: escalation-flash 1s ease-in-out infinite;
+}
+@keyframes escalation-flash {
+  0%, 100% { box-shadow: inset 0 0 0 0 transparent; }
+  50% { box-shadow: inset 0 0 0 12px var(--brand); }
+}
+
+/* W-3 One-Tap Verdict */
+.card--verdict {
+  text-align: center;
+}
+.verdict-faces {
+  display: flex;
+  justify-content: center;
+  gap: 16px;
+  margin: 12px 0;
+}
+.verdict-face {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  padding: 14px 18px;
+  cursor: pointer;
+  transition: transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1), background 0.2s ease;
+}
+.verdict-face:hover, .verdict-face:focus-visible {
+  transform: translateY(-3px) scale(1.04);
+  background: var(--surface);
+  border-color: var(--brand);
+}
+.verdict-face:active {
+  transform: scale(0.95);
+}
+.verdict-emoji {
+  font-size: 34px;
+  line-height: 1;
+}
+.verdict-label {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ink-2);
+}
+
+/* C-1 Counter Mode & C-2 Pending Rail */
+.counter-card {
+  touch-action: pan-y;
+  user-select: none;
+  cursor: grab;
+}
+.counter-card:active {
+  cursor: grabbing;
+}
+.pending-rail {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 4px 0 10px;
+  scroll-behavior: smooth;
+}
+.pending-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 500;
+  background: color-mix(in srgb, var(--brand) 12%, var(--surface));
+  color: var(--ink-2);
+  border: 1px solid color-mix(in srgb, var(--brand) 25%, transparent);
+  animation: pending-breath 2.4s ease-in-out infinite alternate;
+  white-space: nowrap;
+}
+@keyframes pending-breath {
+  from { opacity: 0.7; transform: translateY(0); }
+  to { opacity: 1; transform: translateY(-1px); }
+}
+
+/* R-2 The Living Screen */
+.living-display {
+  animation: ambient-drift 60s ease-in-out infinite alternate;
+}
+@keyframes ambient-drift {
+  0% { background-position: 0% 0%; }
+  100% { background-position: 100% 100%; }
+}
+.living-qr-breath {
+  animation: qr-breath 6s ease-in-out infinite alternate;
+}
+@keyframes qr-breath {
+  0% { transform: scale(1); box-shadow: var(--shadow-panel); }
+  100% { transform: scale(1.02); box-shadow: 0 16px 40px -8px color-mix(in srgb, var(--brand) 22%, transparent); }
+}
+.flip-board {
+  animation: flip-board 0.45s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+@keyframes flip-board {
+  0% { opacity: 0; transform: translateY(-12px) scale(0.96); }
+  100% { opacity: 1; transform: none; }
+}
+
+/* O-1 Rhythm Heatmap */
+.rhythm-heatmap {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 8px 0;
+}
+.rhythm-hours {
+  display: flex;
+  justify-content: space-between;
+  padding-left: 38px;
+  font-size: 11px;
+  color: var(--ink-4);
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+.rhythm-matrix {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.rhythm-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.rhythm-day-label {
+  width: 30px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--ink-3);
+}
+.rhythm-cells {
+  display: grid;
+  grid-template-columns: repeat(24, 1fr);
+  gap: 3px;
+  flex: 1;
+}
+.rhythm-cell {
+  height: 14px;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--brand) calc(var(--val, 0.04) * 100%), var(--surface-2));
+  transition: transform 0.15s ease, background 0.3s ease;
+}
+.rhythm-cell:hover {
+  transform: scale(1.2);
+  outline: 1px solid var(--brand);
+  z-index: 2;
+}
+
+/* O-2 Milestones */
+.milestone-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 14px;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 500;
+  background: var(--surface-2);
+  color: var(--ink-4);
+  border: 1px solid var(--line);
+}
+.milestone-badge--active {
+  background: color-mix(in srgb, var(--brand) 12%, var(--surface));
+  color: var(--ink);
+  border-color: color-mix(in srgb, var(--brand) 40%, transparent);
+}
+
+/* O-3 The Day Sheet Print Styling */
+@media print {
+  body {
+    background: #fff !important;
+    color: #000 !important;
+  }
+  .topbar, .mobile-nav, .display__chrome, .btn-row, button, [data-action] {
+    display: none !important;
+  }
+  .workspace {
+    padding: 0 !important;
+  }
+  .card {
+    border: 1px solid #ccc !important;
+    box-shadow: none !important;
+    page-break-inside: avoid;
+  }
+}

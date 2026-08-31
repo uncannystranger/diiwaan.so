@@ -76,7 +76,7 @@ export function announce({ title, body, called }) {
    audio context is muted by that switch and no API changes it. So the alert
    never relies on sound alone — the vibration, the ringing card and the wake
    lock all carry it, and the tone is a bonus on devices that allow it. */
-function chime({ urgent = false } = {}) {
+export function chime({ urgent = false } = {}) {
   try {
     const Ctx = window.AudioContext || window.webkitAudioContext;
     if (!Ctx) return;
@@ -108,6 +108,39 @@ function chime({ urgent = false } = {}) {
     });
     setTimeout(() => context.close(), urgent ? 2600 : 1200);
   } catch { /* audio is a bonus, never a requirement */ }
+}
+
+const SOMALI_DIGITS = {
+  '0': 'eber', '1': 'kow', '2': 'laba', '3': 'saddex', '4': 'afar',
+  '5': 'shan', '6': 'lix', '7': 'toddoba', '8': 'sideed', '9': 'sagaal'
+};
+
+/** R-1 Call It Out Loud: Two rising notes followed by digit pronunciation. */
+export function speakTicket(label, { language = 'so' } = {}) {
+  if (!label) return;
+  chime({ urgent: false });
+  if (!('speechSynthesis' in window)) return;
+
+  setTimeout(() => {
+    try {
+      window.speechSynthesis.cancel();
+      let text = label;
+      if (language === 'so') {
+        const parts = String(label).split('');
+        const spoken = parts.map(char => SOMALI_DIGITS[char] || char).join(' ');
+        text = `Lambarka ${spoken}`;
+      } else {
+        text = `Ticket ${label}`;
+      }
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.rate = 0.92;
+      utterance.pitch = 1.05;
+      const voices = window.speechSynthesis.getVoices();
+      const match = voices.find(v => v.lang.startsWith(language)) || voices.find(v => v.lang.startsWith('en')) || voices[0];
+      if (match) utterance.voice = match;
+      window.speechSynthesis.speak(utterance);
+    } catch { /* platform speech fallback */ }
+  }, 380);
 }
 
 /* Keeps the screen awake while someone is waiting, so the call is seen rather

@@ -7,7 +7,7 @@ import { cycleTheme, setTheme, retint, preference as themePreference } from './t
 import { esc } from './ui.js';
 import { prepareLogo, humanSize, MAX_INPUT_BYTES } from './image.js';
 import { presetById, deriveFromPrimary, completeBranding, contrast, readableOn, paletteVars } from './palette.js';
-import { enableAlerts, announce, holdScreenAwake, permission as notificationPermission } from './notify.js';
+import { enableAlerts, announce, holdScreenAwake, speakTicket, permission as notificationPermission } from './notify.js';
 import { buzz } from './haptics.js';
 import { t, toggleLanguage } from './i18n.js';
 import { landingView, reconnectView, signUpView, signInView, forgotView, resetView } from './views/auth.js';
@@ -222,7 +222,8 @@ function parseRoute() {
      replaces it with the path it means as soon as the route resolves. */
   const legacy = location.hash.replace(/^#\/?/, '');
   const source = legacy || location.pathname.replace(/^\/+/, '');
-  const [first = '', second = ''] = source.split('/');
+  const clean = source.split(/[?#]/)[0];
+  const [first = '', second = ''] = clean.split('/');
 
   // Everything under /app is a section of the desk; bare /app is the queue.
   if (first === 'app') return { name: second || 'queue', param: '' };
@@ -360,7 +361,7 @@ async function loadAuxiliary() {
 
 /* ---------- rendering ---------- */
 
-const joinBase = () => session.appUrl() || location.origin;
+const joinBase = () => location.origin;
 
 function consoleContext() {
   return {
@@ -720,6 +721,7 @@ function afterWrite({ sectionChanged, screenKey, keep, caret }) {
 
   scalePreviews();
   if (resolvedRoute.kind === 'customer') announceTurn();
+  if (resolvedRoute.kind === 'display') checkDisplaySpeech();
 }
 
 /** The brand preview renders at true phone width, then scales to its frame. */
@@ -761,9 +763,14 @@ async function navigate() {
    not a new one. Adding a history entry would make Back undo the correction and
    land straight back on the wrong URL. */
 function canonicalise(route) {
-  /* The customer's own routes carry a slug this function does not have, and the
-     join and leave flows set them precisely; leave them alone. */
-  if (route.kind === 'customer') return;
+  /* The customer's own routes carry a slug; canonicalise strips any legacy hash */
+  if (route.kind === 'customer') {
+    if (location.hash) {
+      const slug = store.customer.slug || parseRoute().param;
+      if (slug) history.replaceState(null, '', `/j/${slug}${location.search}`);
+    }
+    return;
+  }
 
   const target = pathFor(route.kind);
   /* A fragment left over from an old link is dropped here. It is how /#/queue
@@ -1456,6 +1463,61 @@ const actions = {
       toast(t('msg.markedNoShow'), { variant: 'warn' });
     } catch (error) { reportError(error); }
   },
+  /* customer replies & feedback */
+  async 'reply-escalation'(event, el) {
+    const reply = el.dataset.reply;
+    try {
+      const slug = store.customer.slug;
+      const token = store.customer.token;
+      await fetch(`/api/public/${encodeURIComponent(slug)}/reply`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token, reply })
+      });
+      if (store.customer.view?.ticket) {
+        store.customer.view.ticket.customerReply = reply;
+      }
+      buzz('select');
+      render();
+    } catch (error) { reportError(error); }
+  },
+  async 'give-verdict'(event, el) {
+    const score = el.dataset.score;
+    ui.verdictScore = score;
+    ui.verdictGiven = true;
+    buzz('select');
+    render();
+    try {
+      const slug = store.customer.slug;
+      const token = store.customer.token;
+      await fetch(`/api/public/${encodeURIComponent(slug)}/verdict`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token, score })
+      });
+    } catch { /* best effort */ }
+  },
+  async 'verdict-tag'(event, el) {
+    const tag = el.dataset.tag;
+    buzz('tap');
+    try {
+      const slug = store.customer.slug;
+      const token = store.customer.token;
+      await fetch(`/api/public/${encodeURIComponent(slug)}/verdict`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token, score: ui.verdictScore || 'good', tag })
+      });
+      toast(t('verdict.thanks'));
+    } catch { /* best effort */ }
+  },
+  'print-daysheet'() {
+    window.print();
+  },
+  'toggle-display-voice'() {
+    ui.displayVoice = ui.displayVoice === false ? true : false;
+    render();
+  },
   async 'ticket-call'(event, el) {
     const label = el.dataset.label;
     try {
@@ -2142,6 +2204,84 @@ document.addEventListener('keydown', event => {
     handlerFor(map[key])?.(event, root);
   }
 });
+
+/* ---------- C-1 Counter Mode Gestures & Shake to Undo ---------- */
+
+let swipeCard = null;
+let startX = 0;
+let currentDx = 0;
+let longPressTimer = null;
+
+root.addEventListener('pointerdown', e => {
+  const card = e.target.closest('[data-swipe-card="serving"]');
+  if (!card) return;
+  if (e.target.closest('button, a, input, [data-action]')) return;
+  const ticketId = card.dataset.ticketId;
+  if (!ticketId) return;
+
+  swipeCard = card;
+  startX = e.clientX;
+  currentDx = 0;
+  card.style.transition = 'none';
+
+  longPressTimer = setTimeout(() => {
+    if (swipeCard && Math.abs(currentDx) < 15) {
+      buzz('select');
+      actions['ticket-skip']?.(null, { dataset: { id: ticketId } });
+      swipeCard = null;
+    }
+  }, 600);
+});
+
+root.addEventListener('pointermove', e => {
+  if (!swipeCard) return;
+  currentDx = e.clientX - startX;
+  if (Math.abs(currentDx) > 10) clearTimeout(longPressTimer);
+  swipeCard.style.transform = `translateX(${currentDx}px) rotate(${currentDx * 0.03}deg)`;
+  swipeCard.style.opacity = Math.max(0.4, 1 - Math.abs(currentDx) / 320);
+});
+
+const endSwipe = () => {
+  clearTimeout(longPressTimer);
+  if (!swipeCard) return;
+  const card = swipeCard;
+  const ticketId = card.dataset.ticketId;
+  swipeCard = null;
+
+  card.style.transition = 'transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.25s ease';
+  if (currentDx > 80) {
+    // Swipe Right: Complete
+    buzz('success');
+    card.style.transform = 'translateX(100vw)';
+    card.style.opacity = '0';
+    setTimeout(() => { actions['ticket-complete']?.(null, { dataset: { id: ticketId } }); }, 200);
+  } else if (currentDx < -80) {
+    // Swipe Left: No Show
+    buzz('warn');
+    card.style.transform = 'translateX(-100vw)';
+    card.style.opacity = '0';
+    setTimeout(() => { actions['ticket-noshow']?.(null, { dataset: { id: ticketId } }); }, 200);
+  } else {
+    // Spring back
+    card.style.transform = '';
+    card.style.opacity = '';
+  }
+};
+
+root.addEventListener('pointerup', endSwipe);
+root.addEventListener('pointercancel', endSwipe);
+
+/* Display Vocalize */
+let lastDisplayServing = null;
+function checkDisplaySpeech() {
+  if (resolvedRoute?.kind !== 'display' || ui.displayVoice === false) return;
+  const serving = store.owner.snapshot?.serving;
+  if (!serving || !serving.label) return;
+  if (serving.label !== lastDisplayServing) {
+    lastDisplayServing = serving.label;
+    speakTicket(serving.label);
+  }
+}
 
 /* ---------- lifecycle ---------- */
 

@@ -170,6 +170,37 @@ router.post('/:slug/leave', leaveLimiter, async (req, res, next) => {
   } catch (error) { next(error); }
 });
 
+/** W-2 Escalation Ladder: Customer replies with "Coming now" or "Two minutes" */
+router.post('/:slug/reply', readLimiter, async (req, res, next) => {
+  try {
+    const { business, queue } = await loadTenant(req);
+    const mine = await queueService.ticketBySession(business._id, asToken(req.body.token));
+    if (!mine) throw new HttpError(404, 'We could not find your ticket.');
+    const reply = req.body.reply === 'two_minutes' ? 'two_minutes' : 'coming_now';
+    await col(collections.tickets).updateOne(
+      { _id: mine._id },
+      { $set: { customerReply: reply, updatedAt: new Date() } }
+    );
+    res.json({ ok: true, reply, view: await customerView(business, queue, mine.sessionToken) });
+  } catch (error) { next(error); }
+});
+
+/** W-3 One-Tap Verdict: Customer records feedback on completed visit */
+router.post('/:slug/verdict', readLimiter, async (req, res, next) => {
+  try {
+    const { business, queue } = await loadTenant(req);
+    const mine = await queueService.ticketBySession(business._id, asToken(req.body.token));
+    if (!mine) throw new HttpError(404, 'We could not find your ticket.');
+    const score = ['good', 'okay', 'bad'].includes(req.body.score) ? req.body.score : 'good';
+    const tag = ['fast', 'friendly', 'long_wait'].includes(req.body.tag) ? req.body.tag : null;
+    await col(collections.tickets).updateOne(
+      { _id: mine._id },
+      { $set: { verdict: { score, tag, at: new Date() }, updatedAt: new Date() } }
+    );
+    res.json({ ok: true });
+  } catch (error) { next(error); }
+});
+
 /** Live updates for the customer's ticket — redacted to queue-level facts. */
 /** A customer's device asks to be told when its own number comes up. */
 router.post('/:slug/notify', readLimiter, async (req, res, next) => {

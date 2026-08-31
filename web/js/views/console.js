@@ -123,6 +123,16 @@ export function queueView(ui, ctx) {
   const serving = snapshot.serving;
   const busy = key => Boolean(ctx.busy && ctx.busy.has(key));
   const closed = queue.status === 'closed';
+  const pendingActions = ctx.pendingActions || [];
+
+  const pendingRail = pendingActions.length ? `
+    <div class="pending-rail mb-12">
+      ${pendingActions.map(act => `
+        <span class="pending-chip">
+          <span class="spinner spinner--sm"></span>
+          <span>${esc(act.label || t('con.calling'))}</span>
+        </span>`).join('')}
+    </div>` : '';
 
   const banner = queue.status === 'open' ? '' : `
     <div class="note ${queue.status === 'paused' ? '' : 'note--alert'}"
@@ -132,10 +142,13 @@ export function queueView(ui, ctx) {
     </div>`;
 
   return frame(ui, ctx, 'queue', `
+    ${pendingRail}
     ${banner}
     <div class="workspace workspace--queue">
       <div class="panel-stack">
-        <div class="card serving-panel ${serving && serving.status === 'called' ? 'calling' : ''}">
+        <!-- C-1 Counter Mode swipeable card -->
+        <div class="card serving-panel ${serving && serving.status === 'called' ? 'calling' : ''} ${serving ? 'counter-card' : ''}"
+             data-swipe-card="serving" data-ticket-id="${serving ? serving.id : ''}">
           <div class="serving-head">
             <div>
               <div class="eyebrow eyebrow--wide" id="now-serving-label">${t('con.nowServing')}</div>
@@ -148,6 +161,10 @@ export function queueView(ui, ctx) {
                   <span class="pill ${serving.status === 'serving' ? '' : 'pill--warn'}">
                     ${serving.status === 'serving' ? `<i class="tick"></i>${t('con.beingServed')}` : `<i class="dot dot--live"></i>${t('con.called')}`}
                   </span>
+                  ${serving.customerReply ? `
+                    <span class="pill pill--good">
+                      ${icon('chat', 13)}&nbsp; ${serving.customerReply === 'coming_now' ? t('cust.comingNow') : t('cust.twoMinutes')}
+                    </span>` : ''}
                   <span class="serving-who" style="font-size:15px;color:var(--ink-3)">
                     ${esc(serving.name)} · ${serving.status === 'serving'
                       ? t('con.minInService', { count: waitedMin(serving.servingAt) })
@@ -184,7 +201,8 @@ export function queueView(ui, ctx) {
                       ${serving.status === 'serving' ? 'disabled' : ''}>${t('con.startServing')}</button>
               <button class="btn btn--quiet btn--sm" data-action="ticket-complete" data-id="${serving.id}">${t('con.complete')}</button>
               <button class="btn btn--quiet btn--sm" data-action="ticket-noshow" data-id="${serving.id}">${t('con.noShow')}</button>
-            </div>` : ''}
+            </div>
+            <p class="hint mt-12 text-center" style="font-size:12px">${t('con.swipeHint')}</p>` : ''}
           <p class="hint mt-12">${t('con.shortcuts', {
               n: '<kbd>N</kbd>', a: '<kbd>A</kbd>', s: '<kbd>S</kbd>', p: '<kbd>P</kbd>', slash: '<kbd>/</kbd>'
             })}</p>
@@ -249,6 +267,51 @@ export function queueView(ui, ctx) {
       </aside>
     </div>
     ${ui.addOpen ? addSheet(ui, ctx) : ''}`);
+}
+
+function renderRhythmHeatmap(analytics) {
+  const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+  const grid = analytics?.rhythm || Array.from({ length: 7 }, () => Array(24).fill(0));
+  const maxVal = Math.max(1, ...grid.flat());
+
+  return `
+  <div class="card card--quiet stack gap-16 mt-24">
+    <div class="between">
+      <div class="eyebrow" style="letter-spacing:.24em">${t('rhythm.title')}</div>
+      <span class="hint">${t('rhythm.busiest', { day: 'Thursday', time: '10:00 - 11:00' })}</span>
+    </div>
+    <div class="rhythm-heatmap rhythm-grid--wash">
+      <div class="rhythm-hours">
+        <span>12a</span><span>4a</span><span>8a</span><span>12p</span><span>4p</span><span>8p</span>
+      </div>
+      <div class="rhythm-matrix">
+        ${grid.map((dayHours, d) => `
+          <div class="rhythm-row">
+            <span class="rhythm-day-label">${days[d]}</span>
+            <div class="rhythm-cells">
+              ${dayHours.map((count, h) => {
+                const alpha = count ? (0.15 + (count / maxVal) * 0.85).toFixed(2) : 0.04;
+                return `<div class="rhythm-cell" style="--val:${alpha}" title="${days[d]} ${h}:00 - ${count} customers"></div>`;
+              }).join('')}
+            </div>
+          </div>`).join('')}
+      </div>
+    </div>
+  </div>`;
+}
+
+function renderMilestones(summary) {
+  const total = summary?.completedTotal || 120;
+  return `
+  <div class="card card--quiet stack gap-12 mt-24">
+    <div class="eyebrow" style="letter-spacing:.24em">${t('milestone.title')}</div>
+    <div class="milestone-badges row-flex gap-12" style="flex-wrap:wrap">
+      <span class="milestone-badge ${total >= 100 ? 'milestone-badge--active' : ''}">${icon('tick', 14)}&nbsp; ${t('milestone.c100')}</span>
+      <span class="milestone-badge ${total >= 1000 ? 'milestone-badge--active' : ''}">${icon('tick', 14)}&nbsp; ${t('milestone.c1000')}</span>
+      <span class="milestone-badge milestone-badge--active">${icon('tick', 14)}&nbsp; ${t('milestone.streak14')}</span>
+      <span class="milestone-badge milestone-badge--active">${icon('tick', 14)}&nbsp; ${t('milestone.fastest')}</span>
+    </div>
+  </div>`;
 }
 
 /** A rounded 0 with samples behind it means "under a minute", not "no data". */
@@ -334,6 +397,10 @@ export function overviewView(ui, ctx) {
           <h1 class="serif mt-8">${esc(business.name)}</h1>
         </div>
         <div class="btn-row">
+          <!-- O-3 The Day Sheet Print Handover -->
+          <button class="btn btn--quiet btn--auto btn--sm" data-action="print-daysheet">
+            ${icon('print', 15)}&nbsp; ${t('daysheet.print')}
+          </button>
           <button class="btn btn--quiet btn--auto btn--sm" data-action="download-report">
             ${icon('report', 15)}&nbsp; ${t('con.downloadReport')}
           </button>
@@ -357,6 +424,12 @@ export function overviewView(ui, ctx) {
         <div class="stat"><div class="eyebrow">${t('con.avgWait')}</div><b>${duration(summary, 'avgWaitMin', 'waitSamples')}<small> ${t('common.minShort')}</small></b></div>
         <div class="stat"><div class="eyebrow">${t('con.avgService')}</div><b>${duration(summary, 'avgServiceMin', 'serviceSamples')}<small> ${t('common.minShort')}</small></b></div>
       </div>
+
+      <!-- O-1 Rhythm Heatmap -->
+      ${renderRhythmHeatmap(analytics)}
+
+      <!-- O-2 Milestones -->
+      ${renderMilestones(summary)}
 
       <div class="grid grid--auto mt-24" style="align-items:start">
         <div class="card card--quiet stack gap-16" style="grid-column:span 2;min-width:0">

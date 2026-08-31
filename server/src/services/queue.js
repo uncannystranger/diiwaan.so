@@ -110,10 +110,13 @@ export const publicTicket = ticket => ({
   phone: openField(ticket.phone),
   service: ticket.serviceName || '',
   status: ticket.status,
-  createdAt: ticket.createdAt,
+  position: ticket.position,
   calledAt: ticket.calledAt,
   servingAt: ticket.servingAt,
-  recallCount: ticket.recallCount || 0
+  recallCount: ticket.recallCount || 0,
+  createdAt: ticket.createdAt,
+  customerReply: ticket.customerReply || null,
+  verdict: ticket.verdict || null
 });
 
 /** Strips staff-only fields for the public customer stream. */

@@ -15,13 +15,14 @@
     if (lang === 'so' || lang === 'en') root.lang = lang;
 
     var theme = localStorage.getItem('diiwaan:theme') || 'system';
-    root.setAttribute('data-theme', theme === 'system'
-      ? (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
-      : theme);
+    var isDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+    var resolvedTheme = theme === 'system' ? (isDark ? 'dark' : 'light') : theme;
+    root.setAttribute('data-theme', resolvedTheme);
 
     // The customer page for one business must not borrow another's colours, so
     // the remembered paint is filed under the queue it belongs to.
-    var path = (location.hash.replace(/^#\/?/, '') || location.pathname.slice(1)).split('/');
+    var rawPath = (location.hash.replace(/^#\/?/, '') || location.pathname.replace(/^\/+/, '')).split(/[?#]/)[0];
+    var path = rawPath.split('/');
     var customer = (path[0] === 'j' || path[0] === 't') && path[1];
 
     /* The signed-out screens are Diiwaan's own, not a business's. Restoring the

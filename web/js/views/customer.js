@@ -181,6 +181,17 @@ export function ticketView(ui, { view, connection }) {
   const progress = called ? 100 : Math.min(100, Math.round(((start - ahead) / start) * 100));
   const offline = connection === 'offline';
 
+  const circumference = 2 * Math.PI * 68; // ~427.25
+  const remainingRatio = called ? 0 : Math.max(0, Math.min(1, ahead / (start || 1)));
+  const strokeOffset = (circumference * (1 - remainingRatio)).toFixed(2);
+  const zone = called || ahead === 0 ? 'red' : ahead <= 2 ? 'amber' : 'green';
+  const zoneColor = zone === 'red' ? '#d9383a' : zone === 'amber' ? 'var(--brand)' : 'var(--accent, #3AA69B)';
+  const zoneText = zone === 'red'
+    ? t('cust.ringRed')
+    : zone === 'amber'
+      ? t('cust.ringAmber')
+      : t('cust.ringGreen', { min: ticket.estimateMin || (ahead * 4) });
+
   const offlineBanner = offline ? `
     <div class="stage" style="padding-bottom:0">
       <div class="note row-flex gap-12" style="font-family:Poppins,sans-serif;font-size:14px">
@@ -194,25 +205,39 @@ export function ticketView(ui, { view, connection }) {
   return shell(view, `
     <div class="stage">
       <div class="customer-split customer-split--even">
-        <div class="card stack gap-16 ${called ? 'calling' : ''}" style="text-align:center;align-items:center">
+        <div class="card stack gap-16 ${called ? 'calling screen--pulse' : ''}" style="text-align:center;align-items:center;position:relative">
           <div class="eyebrow eyebrow--wide">${t('cust.yourNumber')}</div>
-          <div class="numeral numeral--xl" data-anim-key="myticket">${esc(ticket.label)}</div>
-          <div class="serif" style="font-size:20px;font-style:italic;color:var(--clay)">${headline(ahead, called)}</div>
-          ${called
-            ? `<p class="lead">${esc(page.calledMessage)}</p>`
-            : page.showProgress ? `
-              <div class="queue-line" style="width:100%;max-width:380px">
-                <div class="meter meter--journey" data-anim-key="progress">
-                  <i style="width:${progress}%"></i>
-                  <!-- Rides the filled part, so the line reads as a queue that is
-                       moving rather than a bar that happens to be part-full. -->
-                  <span class="meter__pulse" style="left:${progress}%"></span>
-                </div>
-                <div class="queue-line__ends">
-                  <span>${esc(t('cust.joined'))}</span>
-                  <span>${esc(t('cust.yourNumber'))}</span>
-                </div>
-              </div>` : ''}
+          
+          <!-- W-1 The Walk-Away Ring -->
+          <div class="walkaway-ring-wrap" style="position:relative;width:170px;height:170px;display:grid;place-items:center">
+            <svg class="walkaway-ring" width="170" height="170" viewBox="0 0 170 170" style="position:absolute;inset:0;transform:rotate(-90deg)">
+              <circle cx="85" cy="85" r="68" fill="none" stroke="var(--tint, rgba(0,0,0,0.06))" stroke-width="8" />
+              <circle cx="85" cy="85" r="68" fill="none" stroke="${zoneColor}" stroke-width="8" stroke-linecap="round"
+                      style="stroke-dasharray:${circumference.toFixed(2)};stroke-dashoffset:${strokeOffset};transition:stroke-dashoffset 0.8s ease, stroke 0.4s ease" />
+            </svg>
+            <div class="numeral numeral--xl" data-anim-key="myticket" style="position:relative;z-index:2">${esc(ticket.label)}</div>
+          </div>
+
+          <div class="pill ${zone === 'red' ? 'pill--warn pulse-red' : zone === 'amber' ? 'pill--warn' : 'pill--good'}" style="font-size:13px;padding:6px 14px">
+            ${zoneText}
+          </div>
+
+          ${called && page.calledMessage ? `<p class="lead">${esc(page.calledMessage)}</p>` : ''}
+
+          <!-- W-2 The Escalation Ladder Reply -->
+          ${called ? `
+            <div class="escalation-replies mt-12 stack gap-8" style="width:100%;max-width:320px">
+              <div class="btn-row">
+                <button class="btn btn--hero" style="flex:1" data-action="reply-escalation" data-reply="coming_now">
+                  ${t('cust.comingNow')}
+                </button>
+                <button class="btn btn--quiet" style="flex:1" data-action="reply-escalation" data-reply="two_minutes">
+                  ${t('cust.twoMinutes')}
+                </button>
+              </div>
+              ${ticket.customerReply ? `<p class="hint center">${t('cust.replied', { reply: ticket.customerReply === 'coming_now' ? t('cust.comingNow') : t('cust.twoMinutes') })}</p>` : ''}
+            </div>` : ''}
+
           ${ticket.service ? `<span class="pill pill--mute">${esc(ticket.service)}</span>` : ''}
         </div>
 
@@ -264,16 +289,38 @@ export function ticketView(ui, { view, connection }) {
     </div>`, { connection, extra: offlineBanner });
 }
 
-/** Their number has been served, or the desk removed them. */
+/** W-3 One-Tap Verdict: Their number has been served, closing loop with 3 faces. */
 export function doneView(ui, { view, connection }) {
   const business = view.business;
+  const verdictGiven = ui.verdictGiven || false;
   return shell(view, `
     <div class="stage stage--narrow">
       <div class="stack gap-16" style="flex:1;justify-content:center;align-items:center;text-align:center">
         <h1 class="serif">${t('cust.turnPassed')}</h1>
         <p class="lead" style="max-width:34ch">${esc(t('cust.turnPassedBody', { business: business.name }))}</p>
+        
+        <!-- W-3 One-Tap Verdict -->
+        ${!verdictGiven ? `
+          <div class="card stack gap-16 mt-16" style="width:100%;max-width:380px;align-items:center">
+            <div class="eyebrow">${t('verdict.howWasService')}</div>
+            <div class="row-flex gap-16 justify-center" style="margin:8px 0">
+              <button type="button" class="btn btn--ghost" data-action="give-verdict" data-score="good" style="font-size:32px;padding:12px 18px" title="${esc(t('verdict.good'))}">😃</button>
+              <button type="button" class="btn btn--ghost" data-action="give-verdict" data-score="okay" style="font-size:32px;padding:12px 18px" title="${esc(t('verdict.okay'))}">😐</button>
+              <button type="button" class="btn btn--ghost" data-action="give-verdict" data-score="bad" style="font-size:32px;padding:12px 18px" title="${esc(t('verdict.bad'))}">🙁</button>
+            </div>
+            ${ui.verdictScore ? `
+              <div class="chips justify-center mt-8">
+                <button type="button" class="chip" data-action="verdict-tag" data-tag="fast">${t('verdict.fast')}</button>
+                <button type="button" class="chip" data-action="verdict-tag" data-tag="friendly">${t('verdict.friendly')}</button>
+                <button type="button" class="chip" data-action="verdict-tag" data-tag="long_wait">${t('verdict.longWait')}</button>
+              </div>` : ''}
+          </div>` : `
+          <div class="note note--green mt-16" style="width:100%;max-width:380px">
+            ${t('verdict.thanks')}
+          </div>`}
+
         <div style="width:100%;max-width:320px" class="mt-16">
-          <button class="btn" data-action="rejoin">${t('cust.joinAgain')}</button>
+          <button class="btn btn--quiet" data-action="rejoin">${t('cust.joinAgain')}</button>
         </div>
       </div>
     </div>`, { connection });
