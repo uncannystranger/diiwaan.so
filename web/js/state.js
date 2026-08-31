@@ -148,33 +148,40 @@ export function resetOwner() {
 
 /* ---------- owner ---------- */
 
+let accountInFlight = null;
+
 export async function loadAccount() {
+  if (accountInFlight) return accountInFlight;
   owner.loading = true;
   notify();
-  try {
-    let { user, businesses } = await api.me();
+  accountInFlight = (async () => {
+    try {
+      let { user, businesses } = await api.me();
 
-    /* Someone who arrived through Google already told Google their name; asking
-       again on the setup screen would be asking for something we were handed.
-       Adopted once, the first time we see a profile that has none. */
-    if (session.googleName && !user.name) {
-      await api.updateProfile({ name: session.googleName }).catch(() => {});
-      user = { ...user, name: session.googleName };
+      /* Someone who arrived through Google already told Google their name; asking
+         again on the setup screen would be asking for something we were handed.
+         Adopted once, the first time we see a profile that has none. */
+      if (session.googleName && !user.name) {
+        await api.updateProfile({ name: session.googleName }).catch(() => {});
+        user = { ...user, name: session.googleName };
+      }
+      session.clearGoogleName();
+
+      session.setAccount({ user, businesses });
+      owner.businesses = businesses;
+      owner.error = null;
+      return { user, businesses };
+    } catch (error) {
+      owner.error = error;
+      if (error.offline) owner.connection = 'offline';
+      return { user: null, businesses: [] };
+    } finally {
+      owner.loading = false;
+      accountInFlight = null;
+      notify();
     }
-    session.clearGoogleName();
-
-    session.setAccount({ user, businesses });
-    owner.businesses = businesses;
-    owner.error = null;
-    return { user, businesses };
-  } catch (error) {
-    owner.error = error;
-    if (error.offline) owner.connection = 'offline';
-    return { user: null, businesses: [] };
-  } finally {
-    owner.loading = false;
-    notify();
-  }
+  })();
+  return accountInFlight;
 }
 
 export async function openBusiness(businessId) {

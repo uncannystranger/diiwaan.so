@@ -291,7 +291,9 @@ async function resolveRoute() {
     return { kind: 'landing' };
   }
 
-  if (!session.state.user) await store.loadAccount();
+  if (!session.state.user || !store.owner.businesses.length || store.owner.loading) {
+    await store.loadAccount();
+  }
 
   const businesses = store.owner.businesses;
   if (!businesses.length) return { kind: 'setup' };
