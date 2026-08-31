@@ -46,7 +46,7 @@ export async function verifyFirebaseToken(token) {
     return {
       id: payload.sub,
       email: payload.email || '',
-      emailVerified: Boolean(payload.email_verified),
+      emailVerified: Boolean(payload.email_verified || payload.firebase?.sign_in_provider === 'google.com'),
       provider: 'firebase'
     };
   } catch {

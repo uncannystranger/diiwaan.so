@@ -33,11 +33,17 @@
        flash this file exists to prevent. app.js sets the same attribute once it
        runs; this is only about being early. */
     var entry = { '': 1, signup: 1, signin: 1, forgot: 1, reset: 1 };
+    var hasOwner = Boolean(localStorage.getItem('diiwaan:business') || localStorage.getItem('diiwaan:paint:owner'));
     if (!customer && Object.prototype.hasOwnProperty.call(entry, path[0])) {
-      root.setAttribute('data-scope', 'entry');
-      return;
+      if (path[0] === '' && hasOwner) {
+        root.setAttribute('data-scope', 'app');
+      } else {
+        root.setAttribute('data-scope', 'entry');
+        return;
+      }
+    } else {
+      root.setAttribute('data-scope', 'app');
     }
-    root.setAttribute('data-scope', 'app');
 
     var key = customer ? 'q:' + path[1] : 'owner';
 

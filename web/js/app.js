@@ -524,7 +524,7 @@ function applyCustomerTheme(resolved) {
   }
 }
 
-let resolvedRoute = { kind: 'landing' };
+let resolvedRoute = null;
 
 const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)');
 
@@ -563,6 +563,18 @@ function commit(html, sectionChanged, done) {
       if (chrome && nextChrome) chrome.innerHTML = nextChrome.innerHTML;
       const nav = root.querySelector('.mobile-nav');
       if (nav && nextNav) nav.innerHTML = nextNav.innerHTML;
+
+      const verify = root.querySelector('.verify-strip');
+      const nextVerify = parser.querySelector('.verify-strip');
+      if (verify && nextVerify) verify.replaceWith(nextVerify);
+      else if (!verify && nextVerify) root.querySelector('#main')?.after(nextVerify);
+      else if (verify && !nextVerify) verify.remove();
+
+      const accountScrim = root.querySelector('.screen > .scrim');
+      const nextAccountScrim = parser.querySelector('.screen > .scrim');
+      if (accountScrim && nextAccountScrim) accountScrim.innerHTML = nextAccountScrim.innerHTML;
+      else if (!accountScrim && nextAccountScrim) root.querySelector('.screen')?.append(nextAccountScrim);
+      else if (accountScrim && !nextAccountScrim) accountScrim.remove();
 
       swapSection(current, next);
       syncOverlays(parser);
@@ -617,7 +629,7 @@ function render() {
      which is exactly how a dashboard appears for a moment and is then taken
      away again. Until both hold, the honest thing to show is the splash already
      in the document. */
-  if (!booted || session.isInitializing()) return;
+  if (!booted || !resolvedRoute || session.isInitializing()) return;
 
   const active = document.activeElement;
   const keep = active?.dataset?.keep;
@@ -732,6 +744,7 @@ async function navigate() {
   await loadScreen(next.kind);
   resolvedRoute = next;
   canonicalise(next);
+  booted = true;
   render();
 }
 
@@ -864,7 +877,7 @@ session.onSessionChange(() => {
      resolved, so nothing of theirs can be painted while B's own data loads. */
   if (identityChanged && previous !== null) forgetTenant();
 
-  if (!booted || !changed) return render();
+  if (!booted || !resolvedRoute || !changed) return render();
   // Several emits can land in one tick; one re-resolve answers all of them.
   if (reroutePending) return;
   reroutePending = true;
@@ -1191,6 +1204,7 @@ const actions = {
          anywhere, so this tab has to move itself. Null means the browser
          refused the popup and the page is already on its way to Google. */
       if (session_) {
+        await store.loadAccount();
         ui.googleBusy = false;
         await navigate();
       }
@@ -2189,21 +2203,19 @@ document.addEventListener('visibilitychange', () => {
 const RENDER_AT = 10_000;
 const GIVE_UP_AT = 25_000;
 
-const failsafe = setTimeout(() => {
+const failsafe = setTimeout(async () => {
   if (booted) return;
   if (session.isRestoring()) return;   // the ceiling below still applies
   console.warn('[diiwaan] boot overran; resolving without it');
   session.abandonBoot();
-  booted = true;
-  navigate();
+  await navigate();
 }, RENDER_AT);
 
-const ceiling = setTimeout(() => {
+const ceiling = setTimeout(async () => {
   if (booted) return;
   console.warn('[diiwaan] session restore never answered; rendering signed out');
   session.abandonBoot();
-  booted = true;
-  navigate();
+  await navigate();
 }, GIVE_UP_AT);
 
 try {
@@ -2224,19 +2236,16 @@ try {
      change re-resolves the route on its own, and the ceiling above is what
      guarantees this ends. */
   if (session.isRestoring()) {
-    session.onSessionChange(function once() {
+    session.onSessionChange(async function once() {
       if (session.isInitializing()) return;
       clearTimeout(ceiling);
-      if (!booted) { booted = true; navigate(); }
+      if (!booted) await navigate();
     });
   } else {
     clearTimeout(ceiling);
     // A boot that threw may have left the phase unset; nothing may render until
     // it is decided, so decide it here rather than leaving the splash up.
     session.abandonBoot();
-    if (!booted) {
-      booted = true;
-      await navigate();
-    }
+    if (!booted) await navigate();
   }
 }
