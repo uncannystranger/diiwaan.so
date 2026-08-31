@@ -110,14 +110,14 @@ export function joinView(ui, { view, connection }) {
         <div class="stack gap-24">
           ${ui.greeted && ui.join.name ? `
             <div class="welcome-back">
-              <span>${esc(t('cust.welcomeBack', { name: ui.join.name }))}</span>
-              <button type="button" class="btn btn--link btn--sm" data-action="forget-me">${t('cust.notYou')}</button>
+              <span style="word-break:break-word;overflow-wrap:anywhere">${esc(t('cust.welcomeBack', { name: ui.join.name }))}</span>
+              <button type="button" class="btn btn--link btn--sm" data-action="forget-me" style="flex:none">${t('cust.notYou')}</button>
             </div>` : ''}
-          <h1 class="serif">${esc(page.headline)}</h1>
-          <p class="lead" style="max-width:46ch">${esc(page.subheading)}</p>
-          ${business.description ? `<p class="hint" style="font-size:14px">${esc(business.description)}</p>` : ''}
+          <h1 class="serif" style="word-break:break-word;overflow-wrap:anywhere">${esc(page.headline)}</h1>
+          <p class="lead" style="max-width:46ch;word-break:break-word;overflow-wrap:anywhere">${esc(page.subheading)}</p>
+          ${business.description ? `<p class="hint" style="font-size:14px;word-break:break-word;overflow-wrap:anywhere">${esc(business.description)}</p>` : ''}
 
-          <div class="grid" style="max-width:540px;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:14px">
+          <div class="grid" style="max-width:540px;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:12px">
             <div class="stat">
               <div class="eyebrow"><i class="dot dot--live"></i>&nbsp; ${t('cust.nowServing')}</div>
               <b data-anim-key="serving">${view.serving ? esc(view.serving.label) : '—'}</b>
@@ -218,11 +218,15 @@ export function ticketView(ui, { view, connection }) {
             <div class="numeral numeral--xl" data-anim-key="myticket" style="position:relative;z-index:2">${esc(ticket.label)}</div>
           </div>
 
-          <div class="pill ${zone === 'red' ? 'pill--warn pulse-red' : zone === 'amber' ? 'pill--warn' : 'pill--good'}" style="font-size:13px;padding:6px 14px">
-            ${zoneText}
-          </div>
+          ${called ? `
+            <div class="pill pill--warn pulse-red" style="font-size:15px;font-weight:700;padding:8px 20px;letter-spacing:-.01em">
+              <i class="dot dot--live"></i>&nbsp; ${t('cust.itIsYourTurn')}
+            </div>` : `
+            <div class="pill ${zone === 'amber' ? 'pill--warn' : 'pill--good'}" style="font-size:13px;padding:6px 14px">
+              ${zoneText}
+            </div>`}
 
-          ${called && page.calledMessage ? `<p class="lead">${esc(page.calledMessage)}</p>` : ''}
+          ${called ? `<p class="lead" style="font-weight:600;margin:4px 0">${esc(page.calledMessage || t('cust.itIsYourTurn'))}</p>` : ''}
 
           <!-- The Line: Journey Progress Line -->
           ${!called && page.showProgress !== false ? `

@@ -12,15 +12,15 @@
 const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)');
 
 const PATTERNS = {
-  tap: 8,            // a button press
-  select: 12,        // a choice landed
-  success: [14, 40, 22],
-  warn: [22, 60, 22],
-  error: [30, 50, 30, 50, 30],
-  soon: [30, 80, 30],
+  tap: 12,            // a button press
+  select: 18,        // a choice landed
+  success: [18, 40, 24],
+  warn: [30, 60, 30],
+  error: [40, 50, 40, 50, 40],
+  soon: [40, 90, 40],
   /* Being called is the strongest thing this app ever asks for: a long, rising
      pattern that carries through a pocket, repeated so it is not missed. */
-  turn: [90, 90, 90, 90, 160, 120, 220, 140, 300]
+  turn: [140, 80, 140, 80, 260, 100, 350, 140, 500]
 };
 
 function detect() {

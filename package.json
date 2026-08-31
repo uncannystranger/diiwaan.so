@@ -1,6 +1,6 @@
 {
   "name": "diiwaan",
-  "version": "1.19.0",
+  "version": "1.19.1",
   "private": true,
   "description": "Diiwaan \u2014 multi-tenant queue management for Somali businesses. Firebase Auth + MongoDB, no framework, no build step.",
   "type": "module",

@@ -829,12 +829,13 @@ a.icon-btn, button.icon-btn, .icon-btn {
 /* Two across only when each column still has room to be written in. */
 @media (min-width: 760px) { .field-row { grid-template-columns: 1fr 1fr; } }
 
-.chips { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; width: 100%; }
 .chip {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 6px;
-  padding: 11px 18px;
+  padding: 10px 16px;
   border-radius: 16px;
   background: var(--field);
   border: 1px solid var(--field-edge);
@@ -842,6 +843,12 @@ a.icon-btn, button.icon-btn, .icon-btn {
   font-weight: 500;
   color: var(--ink-2);
   cursor: pointer;
+  white-space: normal;
+  text-align: center;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  max-width: 100%;
+  min-height: 42px;
   transition: transform var(--fast) var(--ease), background var(--fast), color var(--fast), border-color var(--fast);
 }
 .chip:hover { transform: translateY(-1px); }
@@ -2235,16 +2242,25 @@ html.retint, html.retint *, html.retint *::before, html.retint *::after {
   padding: clamp(14px, 3vw, 24px) 20px clamp(6px, 2vw, 14px);
   animation: cust-head-in .34s var(--ease) backwards;
 }
-.cust-head .logo { animation: cust-mark-in .5s var(--ease) backwards; }
 .cust-head__name {
   font-family: Lora, Georgia, serif;
-  font-size: clamp(21px, 5.2vw, 30px);
+  font-size: clamp(20px, 4.8vw, 28px);
   font-weight: 500;
-  line-height: 1.15;
+  line-height: 1.2;
   margin: 0;
   letter-spacing: -.01em;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  hyphens: auto;
+  max-width: 100%;
 }
-.cust-head__where { margin: 0; font-size: 13px; color: var(--ink-4); }
+.cust-head__where {
+  margin: 0;
+  font-size: 13px;
+  color: var(--ink-4);
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
 
 @keyframes cust-head-in { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
 @keyframes cust-mark-in { from { opacity: 0; transform: scale(.86); } to { opacity: 1; transform: none; } }

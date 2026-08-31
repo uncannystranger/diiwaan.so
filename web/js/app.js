@@ -5,9 +5,7 @@ import * as store from './state.js';
 import { api, ApiError } from './api.js';
 import { cycleTheme, setTheme, retint, preference as themePreference } from './theme.js';
 import { esc } from './ui.js';
-import { prepareLogo, humanSize, MAX_INPUT_BYTES } from './image.js';
-import { presetById, deriveFromPrimary, completeBranding, contrast, readableOn, paletteVars } from './palette.js';
-import { enableAlerts, announce, holdScreenAwake, speakTicket, permission as notificationPermission } from './notify.js';
+import { enableAlerts, announce, holdScreenAwake, speakTicket, primeAudio, permission as notificationPermission } from './notify.js';
 import { buzz } from './haptics.js';
 import { t, toggleLanguage } from './i18n.js';
 import { landingView, reconnectView, signUpView, signInView, forgotView, resetView } from './views/auth.js';
@@ -517,16 +515,8 @@ function applyBrand(resolved) {
   }
 }
 
-function applyCustomerTheme(resolved) {
-  const branding = store.customer.view?.business?.branding;
-  const forced = resolved.kind === 'customer' && branding && branding.theme !== 'system' ? branding.theme : null;
-  if (forced) {
-    retint(() => { document.documentElement.dataset.theme = forced; });
-    document.documentElement.dataset.forced = forced;
-  } else if (document.documentElement.dataset.forced) {
-    document.documentElement.dataset.forced = '';
-    setTheme(themePreference);
-  }
+function applyCustomerTheme() {
+  // Theme is strictly device/user-preference driven (prefers-color-scheme) on the client side.
 }
 
 let resolvedRoute = null;
@@ -979,15 +969,15 @@ function announceTurn() {
   }
   lastAnnounced = stage;
 
-  // The visual state is always shown; sound and vibration only once the customer
-  // has asked for alerts.
-  if (!ui.notifyOn) return;
+  // In-page audio chime, haptics, voice and visual pulse fire when the client page is active.
   announce({
     title: view.business.name,
     body: stage === 'called'
       ? `${ticket.label} — it is your turn. Please come to the desk.`
       : `${ticket.label} — you are nearly up.`,
-    called: stage === 'called'
+    called: stage === 'called',
+    label: ticket.label,
+    language: document.documentElement.lang || 'so'
   });
 }
 
@@ -1790,6 +1780,8 @@ const actions = {
   },
   async 'join-queue'(event, form) {
     event.preventDefault();
+    if (ui.busy) return;
+    primeAudio();
     const name = form.querySelector('#join-name').value.trim();
     const phone = form.querySelector('#join-phone').value.trim();
     // Carried to the server, which decides what they mean.

@@ -1,13 +1,10 @@
 /* Telling a customer their turn has come.
-
    The web cannot ring a phone the way a call does. What it can do, in descending
    order of reliability, is: a push notification delivered by the service worker
    even when the tab is closed; a notification from the open page; a vibration;
-   a short tone; and — always — a full-screen "your turn" state. This module
-   arranges all of them and degrades quietly when a browser refuses one. */
+   a clear, noticeable chime; and — always — a full-screen "your turn" state. */
 
 import { buzz } from './haptics.js';
-
 
 export const notificationsSupported = () =>
   'Notification' in window && 'serviceWorker' in navigator && 'PushManager' in window;
@@ -20,19 +17,44 @@ const urlBase64ToUint8Array = base64 => {
   return Uint8Array.from([...raw].map(char => char.charCodeAt(0)));
 };
 
+let sharedAudioCtx = null;
+
+/**
+ * Primes the audio subsystem during a user gesture (tap/click/submit) so that
+ * later background/SSE-driven rings can play without browser autoplay restrictions.
+ */
+export function primeAudio() {
+  try {
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    if (!Ctx) return;
+    if (!sharedAudioCtx) sharedAudioCtx = new Ctx();
+    if (sharedAudioCtx.state === 'suspended') {
+      sharedAudioCtx.resume().catch(() => {});
+    }
+  } catch { /* AudioContext unavailable */ }
+}
+
+if (typeof window !== 'undefined') {
+  const primeHandler = () => {
+    primeAudio();
+    window.removeEventListener('pointerdown', primeHandler);
+    window.removeEventListener('touchstart', primeHandler);
+  };
+  window.addEventListener('pointerdown', primeHandler, { passive: true, once: true });
+  window.addEventListener('touchstart', primeHandler, { passive: true, once: true });
+}
+
 /**
  * Asks for permission and registers a push subscription for this ticket.
- * Called from a button press — never on page load, which browsers punish and
- * customers resent.
- * @returns {Promise<{ok: boolean, reason?: string}>}
+ * Called from a button press — never on page load.
  */
 export async function enableAlerts({ slug, token, publicKey }) {
+  primeAudio();
   if (!('Notification' in window)) return { ok: false, reason: 'unsupported' };
 
   const result = await Notification.requestPermission();
   if (result !== 'granted') return { ok: false, reason: result === 'denied' ? 'denied' : 'dismissed' };
 
-  // Permission alone already buys us page-level notifications and vibration.
   if (!publicKey || !('serviceWorker' in navigator) || !('PushManager' in window)) {
     return { ok: true, reason: 'local' };
   }
@@ -58,56 +80,67 @@ export async function enableAlerts({ slug, token, publicKey }) {
   }
 }
 
-/** The in-page half: fires while the customer is looking at the ticket. */
-export function announce({ title, body, called }) {
-  buzz(called ? 'turn' : 'soon');
-  chime({ urgent: called });
-  if ('Notification' in window && Notification.permission === 'granted' && document.hidden) {
-    try { new Notification(title, { body, tag: 'diiwaan-turn', renotify: true }); } catch { /* platform refused */ }
-  }
-}
-
-/* A short, soft two-note tone. Browsers only allow this once the customer has
-   interacted with the page, which they have — they tapped "alert me". */
-/* Being called is the one moment this page exists for, so the tone is louder,
-   longer and repeated rather than a single polite ping.
-
-   What the web cannot do: override a phone's hardware silent switch. On iOS the
-   audio context is muted by that switch and no API changes it. So the alert
-   never relies on sound alone — the vibration, the ringing card and the wake
-   lock all carry it, and the tone is a bonus on devices that allow it. */
+/**
+ * Plays a clear, professional multi-tone chime.
+ * For urgent (called/serving), generates a prominent harmonic chime that cuts through noise.
+ */
 export function chime({ urgent = false } = {}) {
   try {
+    primeAudio();
     const Ctx = window.AudioContext || window.webkitAudioContext;
     if (!Ctx) return;
-    const context = new Ctx();
-    // Some browsers hand back a suspended context outside a gesture.
-    context.resume?.().catch(() => {});
+    const ctx = sharedAudioCtx && sharedAudioCtx.state !== 'closed' ? sharedAudioCtx : new Ctx();
+    ctx.resume?.().catch(() => {});
 
-    const now = context.currentTime;
-    const peak = urgent ? 0.5 : 0.22;
-    // A rising three-note figure, repeated twice when it is someone's turn.
-    const notes = urgent
-      ? [880, 1174, 1568, 880, 1174, 1568]
-      : [880, 1320];
-    const step = urgent ? 0.16 : 0.18;
+    const now = ctx.currentTime;
+    const peak = urgent ? 0.75 : 0.35;
 
-    notes.forEach((frequency, index) => {
-      const at = now + index * step + (urgent && index === 3 ? 0.28 : 0);
-      const oscillator = context.createOscillator();
-      const gain = context.createGain();
-      // A touch of triangle carries further through room noise than a pure sine.
-      oscillator.type = urgent ? 'triangle' : 'sine';
-      oscillator.frequency.value = frequency;
+    // Rising melodic progression: C5, G5, C6, E6 (repeated for urgent calling)
+    const chords = urgent
+      ? [
+          { freq: 523.25, time: 0.00, dur: 0.35 },
+          { freq: 659.25, time: 0.12, dur: 0.35 },
+          { freq: 783.99, time: 0.24, dur: 0.35 },
+          { freq: 1046.50, time: 0.38, dur: 0.65 },
+          { freq: 1318.51, time: 0.52, dur: 0.85 },
+          // Second repeat burst for maximum noticeability
+          { freq: 783.99, time: 1.10, dur: 0.35 },
+          { freq: 1046.50, time: 1.22, dur: 0.40 },
+          { freq: 1318.51, time: 1.36, dur: 0.90 }
+        ]
+      : [
+          { freq: 880, time: 0.00, dur: 0.25 },
+          { freq: 1320, time: 0.16, dur: 0.40 }
+        ];
+
+    chords.forEach(({ freq, time, dur }) => {
+      const at = now + time;
+      
+      // Dual oscillator: Warm triangle + pure sine for full acoustic presence
+      const osc1 = ctx.createOscillator();
+      const osc2 = ctx.createOscillator();
+      const gain = ctx.createGain();
+
+      osc1.type = 'triangle';
+      osc1.frequency.setValueAtTime(freq, at);
+
+      osc2.type = 'sine';
+      osc2.frequency.setValueAtTime(freq, at);
+
       gain.gain.setValueAtTime(0.0001, at);
-      gain.gain.exponentialRampToValueAtTime(peak, at + 0.03);
-      gain.gain.exponentialRampToValueAtTime(0.0001, at + (urgent ? 0.42 : 0.32));
-      oscillator.connect(gain).connect(context.destination);
-      oscillator.start(at);
-      oscillator.stop(at + (urgent ? 0.44 : 0.34));
+      gain.gain.exponentialRampToValueAtTime(peak, at + 0.025);
+      gain.gain.exponentialRampToValueAtTime(0.0001, at + dur);
+
+      osc1.connect(gain);
+      osc2.connect(gain);
+      gain.connect(ctx.destination);
+
+      osc1.start(at);
+      osc2.start(at);
+      osc1.stop(at + dur + 0.05);
+      osc2.stop(at + dur + 0.05);
     });
-    setTimeout(() => context.close(), urgent ? 2600 : 1200);
-  } catch { /* audio is a bonus, never a requirement */ }
+  } catch { /* Audio is a progressive enhancement */ }
 }
 
 const SOMALI_DIGITS = {
@@ -115,11 +148,9 @@ const SOMALI_DIGITS = {
   '5': 'shan', '6': 'lix', '7': 'toddoba', '8': 'sideed', '9': 'sagaal'
 };
 
-/** R-1 Call It Out Loud: Two rising notes followed by digit pronunciation. */
+/** Spoken ticket announcement with voice synthesis */
 export function speakTicket(label, { language = 'so' } = {}) {
-  if (!label) return;
-  chime({ urgent: false });
-  if (!('speechSynthesis' in window)) return;
+  if (!label || !('speechSynthesis' in window)) return;
 
   setTimeout(() => {
     try {
@@ -133,18 +164,33 @@ export function speakTicket(label, { language = 'so' } = {}) {
         text = `Ticket ${label}`;
       }
       const utterance = new SpeechSynthesisUtterance(text);
-      utterance.rate = 0.92;
+      utterance.rate = 0.94;
       utterance.pitch = 1.05;
       const voices = window.speechSynthesis.getVoices();
       const match = voices.find(v => v.lang.startsWith(language)) || voices.find(v => v.lang.startsWith('en')) || voices[0];
       if (match) utterance.voice = match;
       window.speechSynthesis.speak(utterance);
-    } catch { /* platform speech fallback */ }
-  }, 380);
+    } catch { /* Speech synthesis fallback */ }
+  }, 450);
 }
 
-/* Keeps the screen awake while someone is waiting, so the call is seen rather
-   than missed behind a locked phone. Released when they are done. */
+/** The in-page alert: fires when the customer's state advances */
+export function announce({ title, body, called = false, label = '', language = 'so' } = {}) {
+  buzz(called ? 'turn' : 'soon');
+  chime({ urgent: called });
+
+  if (called) {
+    // Secondary vibration pulse for pocket detection
+    setTimeout(() => buzz('turn'), 1400);
+    if (label) speakTicket(label, { language });
+  }
+
+  if ('Notification' in window && Notification.permission === 'granted' && document.hidden) {
+    try { new Notification(title, { body, tag: 'diiwaan-turn', renotify: true }); } catch { /* platform refused */ }
+  }
+}
+
+/* Keeps the screen awake while someone is waiting, released when done */
 let wakeLock = null;
 export async function holdScreenAwake(on) {
   try {
@@ -155,5 +201,5 @@ export async function holdScreenAwake(on) {
       await wakeLock.release();
       wakeLock = null;
     }
-  } catch { /* denied or unsupported: the page still shows the turn */ }
+  } catch { /* denied or unsupported */ }
 }

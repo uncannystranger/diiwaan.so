@@ -42,7 +42,7 @@
                               screen blank
      the API                  never cached; queue state is the server's word */
 
-const CACHE = 'diiwaan-v26';
+const CACHE = 'diiwaan-v27';
 const NETWORK_DEADLINE_MS = 2500;
 
 /* Code this project authors and ships as a set. Kept as a predicate rather than
