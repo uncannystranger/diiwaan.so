@@ -20,17 +20,15 @@ const headline = (ahead, called) => {
    quietly, at the very bottom. */
 function shell(view, inner, { connection, extra = '' } = {}) {
   const business = view.business;
-  const trouble = connection === 'offline' || connection === 'reconnecting';
+  const trouble = connection !== 'live';
 
   return `
   <div class="screen screen--customer">
     <div class="cust-tools">
-      ${trouble ? `
-        <span class="pill ${connection === 'offline' ? 'pill--warn' : 'pill--mute'}">
-          ${connection === 'offline'
-            ? `<i class="dot dot--hollow"></i>${t('status.noSignal')}`
-            : `<span class="spinner"></span>${t('status.reconnecting')}`}
-        </span>` : ''}
+      <span class="pill connection-status ${trouble ? 'pill--warn' : 'pill--good'}" role="status" aria-live="polite" aria-atomic="true">
+        <i class="dot ${trouble ? 'dot--hollow' : ''}" aria-hidden="true"></i>
+        ${t(connection === 'offline' || connection === 'closed' ? 'status.noSignal' : trouble ? 'status.reconnecting' : 'status.upToDate')}
+      </span>
       <span class="cust-tools__controls">${languageButton()}${themeButton()}</span>
     </div>
 
@@ -192,13 +190,13 @@ export function ticketView(ui, { view, connection }) {
       ? t('cust.ringAmber')
       : t('cust.ringGreen', { min: ticket.estimateMin || (ahead * 4) });
 
-  const offlineBanner = offline ? `
+  const offlineBanner = (offline || connection === 'reconnecting') ? `
     <div class="stage" style="padding-bottom:0">
       <div class="note row-flex gap-12" style="font-family:Poppins,sans-serif;font-size:14px">
         <span style="width:32px;height:32px;border-radius:50%;border:2px solid color-mix(in srgb, var(--brand) 60%, transparent);display:grid;place-items:center;flex:none">
           <i class="dot" style="background:var(--brand)"></i>
         </span>
-        <span>${t('cust.offlineBody')}${view.at ? ` (${ago(view.at)})` : ''}</span>
+        <span>${t(offline ? 'cust.offlineBody' : 'cust.reconnectingBody')}${view.at ? ` (${ago(view.at)})` : ''}</span>
       </div>
     </div>` : '';
 
@@ -207,6 +205,7 @@ export function ticketView(ui, { view, connection }) {
       <div class="customer-split customer-split--even">
         <div class="card stack gap-16 ${called ? 'calling screen--pulse' : ''}" style="text-align:center;align-items:center;position:relative">
           <div class="eyebrow eyebrow--wide">${t('cust.yourNumber')}</div>
+          <p class="ticket-state" role="status">${headline(ahead, called)}</p>
           
           <!-- W-1 The Walk-Away Ring -->
           <div class="walkaway-ring-wrap" style="position:relative;width:170px;height:170px;display:grid;place-items:center">
@@ -215,7 +214,7 @@ export function ticketView(ui, { view, connection }) {
               <circle cx="85" cy="85" r="68" fill="none" stroke="${zoneColor}" stroke-width="8" stroke-linecap="round"
                       style="stroke-dasharray:${circumference.toFixed(2)};stroke-dashoffset:${strokeOffset};transition:stroke-dashoffset 0.8s ease, stroke 0.4s ease" />
             </svg>
-            <div class="numeral numeral--xl" data-anim-key="myticket" style="position:relative;z-index:2">${esc(ticket.label)}</div>
+            <div class="numeral numeral--xl ticket-identifier" data-ticket-id style="position:relative;z-index:2">${esc(ticket.label)}</div>
           </div>
 
           <div class="pill ${zone === 'red' ? 'pill--warn pulse-red' : zone === 'amber' ? 'pill--warn' : 'pill--good'}" style="font-size:13px;padding:6px 14px">

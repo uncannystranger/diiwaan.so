@@ -908,7 +908,7 @@ function watchDisplayIdle() {
     if (ui.displayIdle) { ui.displayIdle = false; render(); }
     clearTimeout(idleTimer);
     idleTimer = setTimeout(() => {
-      if (resolvedRoute.kind !== 'display') return;
+      if (resolvedRoute?.kind !== 'display') return;
       ui.displayIdle = true;
       render();
     }, 4000);

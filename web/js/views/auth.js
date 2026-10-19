@@ -147,7 +147,7 @@ export function reconnectView(ui) {
 
 export function landingView(ui) {
   return shell(`
-    <div class="stage stage--entry">
+    <div class="stage stage--entry stage--story">
       <div class="customer-split">
         <div class="stack gap-24">
           <div class="brand-lockup">
@@ -182,7 +182,7 @@ export function landingView(ui) {
               </button>` : configNote()}
             ${ui?.auth?.errors?.form ? `<p class="error-text">${esc(ui.auth.errors.form)}</p>` : ''}
           </div>
-          <div class="row-flex gap-24 mt-8">
+          <div class="landing-benefits">
             ${[[t('auth.freeTitle'), t('auth.freeHint')],
                [t('auth.offlineTitle'), t('auth.offlineHint')],
                [t('auth.brandTitle'), t('auth.brandHint')]]
@@ -224,6 +224,20 @@ export function landingView(ui) {
           <p class="hint">${t('auth.everyColour')}</p>
         </div>
       </div>
+      <section class="landing-journey" aria-labelledby="journey-title">
+        <div class="landing-journey__intro">
+          <span class="eyebrow">${t('auth.journeyEyebrow')}</span>
+          <h2 class="serif" id="journey-title">${t('auth.journeyTitle')}</h2>
+        </div>
+        <ol class="landing-steps">
+          ${['scan', 'number', 'wait'].map((step, index) => `
+            <li class="landing-step" style="--step:${index}">
+              <span class="landing-step__index" aria-hidden="true">0${index + 1}</span>
+              <h3>${t(`auth.step.${step}`)}</h3>
+              <p class="hint">${t(`auth.step.${step}Body`)}</p>
+            </li>`).join('')}
+        </ol>
+      </section>
     </div>`);
 }
 
