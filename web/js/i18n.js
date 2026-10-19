@@ -71,6 +71,15 @@ document.documentElement.lang = current;
 
 const DICT = {
   so: {
+    'auth.platformEyebrow': 'Maareynta safafka ganacsiga',
+    'auth.platformLine1': 'Saf fudud.',
+    'auth.platformLine2': 'Sugitaan deggan.',
+    'auth.platformPromise1': 'Telefoonka macmiilka',
+    'auth.platformPromise2': 'Astaan ganacsi oo adiga kuu gaar ah',
+    'auth.platformSample': 'Tusaalaha adeegga',
+    'auth.platformPlaceKept': 'Booskaagu waa kuu hayaa',
+    'auth.platformForBusiness': 'Ganacsiga iyo macaamiisha',
+    'auth.platformClosing': 'Adeegga ha socdo. Dadkuna ha nastaan.',
     /* common */
     'common.save': 'Kaydi',
     'common.saving': 'Kaydinaya…',
@@ -669,6 +678,15 @@ const DICT = {
   },
 
   en: {
+    'auth.platformEyebrow': 'Queue management for your business',
+    'auth.platformLine1': 'A better queue.',
+    'auth.platformLine2': 'A calmer day.',
+    'auth.platformPromise1': 'On your customer’s phone',
+    'auth.platformPromise2': 'Your business, your identity',
+    'auth.platformSample': 'Product preview',
+    'auth.platformPlaceKept': 'Your place is kept',
+    'auth.platformForBusiness': 'For your team. For your customers.',
+    'auth.platformClosing': 'Keep service moving. Give people their time.',
     /* common */
     'common.save': 'Save',
     'common.saving': 'Saving…',

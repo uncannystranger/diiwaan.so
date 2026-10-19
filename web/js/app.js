@@ -1072,6 +1072,12 @@ function checkQrReadability(qr) {
 /* ---------- actions ---------- */
 
 const actions = {
+  'landing-step'(event, el) {
+    const step = Number(el.dataset.step);
+    if (![0, 1, 2].includes(step)) return;
+    ui.landingStep = step;
+    render();
+  },
   /* Theme: one attribute write, icon swapped in place, nothing else. Silent by
      design — a confirmation for a change you can already see is just noise. */
   'cycle-theme'() {
