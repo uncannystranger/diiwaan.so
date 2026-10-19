@@ -10,3 +10,5 @@
 - Existing dependency audit reports five findings; broad dependency upgrades are outside this presentation change.
 
 The local review capture includes a development-only Google configuration explanation because Firebase test credentials are intentionally placeholders. No production credentials were used.
+
+Hosted Preview is built but cannot bootstrap because FIREBASE_PROJECT_ID, FIREBASE_API_KEY and MONGODB_URI are absent in Preview. Its reconnect/error state was inspected and captured. No production credentials were copied. The server transition/API suites require real throwaway Firebase accounts, which were unavailable; waiting/called transitions are view-level scenarios, not a verified hosted owner flow. Chrome additionally rendered the local landing and three journey steps. A second early keyboard handler now tolerates an unresolved route during startup.

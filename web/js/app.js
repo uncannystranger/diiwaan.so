@@ -2201,7 +2201,7 @@ document.addEventListener('keydown', event => {
     if (ui.dialog) return closeDialog(null);
     if (ui.addOpen || ui.accountOpen) { ui.addOpen = ui.accountOpen = false; return render(); }
   }
-  if (typing || resolvedRoute.kind !== 'queue') return;
+  if (typing || resolvedRoute?.kind !== 'queue') return;
 
   const map = { n: 'queue-next', a: 'open-add', s: 'ticket-skip', p: 'queue-pause' };
   const key = event.key.toLowerCase();
