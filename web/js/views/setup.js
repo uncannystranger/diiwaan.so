@@ -148,12 +148,13 @@ export function setupView(ui, business, joinBase) {
       <h1 class="serif">${t('setup.fourSteps')}</h1>
       <p class="lead mt-8">${t('setup.twoMinutes')}</p>
 
+      <p class="setup-position" role="status">${t('setup.stepOf', { n: active + 1, total: STEPS.length })} · ${t(STEPS[active][0])}</p>
       <div class="stack gap-16 mt-32">
         ${STEPS.map(([titleKey, hintKey], i) => {
           const done = i < active;
           const isActive = i === active;
           return `
-          <div class="step${done ? ' step--done' : ''}${isActive ? ' step--active' : ''}">
+          <div ${isActive ? 'aria-current="step"' : ''} class="step${done ? ' step--done' : ''}${isActive ? ' step--active' : ''}">
             <div class="step__head">
               <div class="step__num">${done ? icon('check', 16) : i + 1}</div>
               <div class="step__body"><strong>${t(titleKey)}</strong><span>${t(hintKey)}</span></div>

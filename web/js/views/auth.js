@@ -145,86 +145,48 @@ export function reconnectView(ui) {
     </div>`);
 }
 
-export function landingView(ui) {
-  return shell(`
-    <div class="stage stage--entry">
-      <div class="customer-split">
-        <div class="stack gap-24">
-          <div class="brand-lockup">
-            ${diiwaanMark(44)}
-            <div>
-              <div class="brand-lockup__name">DIIWAAN</div>
-              <div class="hint">${t('auth.tagline')}</div>
-            </div>
-          </div>
-          <h1 class="serif hero-title">${t('auth.headline')}</h1>
-          <p class="lead" style="max-width:52ch">${t('auth.lead')}</p>
-          <!-- The three ways in, all of them visible. Google used to be behind
-               the sign-in screen, which meant somebody who signs in with Google
-               had to first find a form they were never going to fill in.
-
-               Offered only when the server has confirmed Google will actually
-               accept this origin. It was offered unconditionally here while the
-               sign-in screen already gated it, so pressing it on the landing
-               page raised "Google sign-in is not set up yet" — a dead control
-               that told the person to go and do something else. Where it cannot
-               be offered, development sees why and nobody else sees anything. -->
-          <div class="entry-actions">
-            <div class="btn-row">
-              <a class="btn entry-cta entry-cta--primary" href="/signup">${t('auth.createQueue')}</a>
-              <a class="btn btn--ghost entry-cta" href="/signin">${t('auth.signIn')}</a>
-            </div>
-            ${googleAuthAvailable() ? `
-              <button type="button" class="btn btn--google entry-cta--google"
-                      data-action="google-auth" ${ui?.googleBusy ? 'disabled aria-busy="true"' : ''}>
-                ${ui?.googleBusy ? '<span class="spinner"></span>' : googleMark(19)}
-                <span>${ui?.googleBusy ? t('auth.googleGoing') : t('auth.google')}</span>
-              </button>` : configNote()}
-            ${ui?.auth?.errors?.form ? `<p class="error-text">${esc(ui.auth.errors.form)}</p>` : ''}
-          </div>
-          <div class="row-flex gap-24 mt-8">
-            ${[[t('auth.freeTitle'), t('auth.freeHint')],
-               [t('auth.offlineTitle'), t('auth.offlineHint')],
-               [t('auth.brandTitle'), t('auth.brandHint')]]
-              .map(([title, hint]) => `
-                <div style="min-width:150px">
-                  <div style="font-size:14px;font-weight:500">${title}</div>
-                  <div class="hint">${hint}</div>
-                </div>`).join('')}
-          </div>
+export function landingView(ui = {}) {
+  const active = [0, 1, 2].includes(ui.landingStep) ? ui.landingStep : 0;
+  const steps = ['scan', 'number', 'wait'];
+  const qr = `<svg viewBox="0 0 100 100" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M5 5h30v30H5zm6 6v18h18V11zM65 5h30v30H65zm6 6v18h18V11zM5 65h30v30H5zm6 6v18h18V71z"/><path d="M16 16h8v8h-8m60-8h8v8h-8M16 76h8v8h-8M43 5h9v12h-9m0 9h12v9H43M5 43h12v9H5m21 0h9v13h-9m17-12h9v9h-9m15 0h9v20h-9m18-20h19v9H76M43 61h9v18h-9m14-9h9v12h-9m16-16h9v9h-9m13-13h9v16h-9M43 87h20v8H43m26-16h8v16h-8m13-11h13v11H82"/></svg>`;
+  return `
+  <div class="screen product-landing" data-depth="0">
+    <header class="topbar product-nav">
+      <a href="/" aria-label="${esc(t('auth.home'))}">${wordmark(20)}</a>
+      <div class="topbar__right">${languageButton()}${themeButton()}<a class="product-nav__signin" href="/signin">${t('auth.signIn')} <span aria-hidden="true">↗</span></a></div>
+    </header>
+    <main class="product-home">
+      <section class="product-hero" aria-labelledby="product-title">
+        <div class="product-hero__copy" data-depth="4">
+          <p class="product-eyebrow"><span></span> ${t('auth.platformEyebrow')}</p>
+          <h1 id="product-title"><span class="product-line"><span>${t('auth.platformLine1')}</span></span><span class="product-line"><span>${t('auth.platformLine2')}</span></span></h1>
+          <p class="product-lead">${t('auth.lead')}</p>
+          <div class="product-actions"><a class="btn product-primary" href="/signup">${t('auth.createQueue')} <span aria-hidden="true">↗</span></a><a class="product-text-link" href="/signin">${t('auth.signIn')}</a></div>
+          ${!ui.designPreview && googleAuthAvailable() ? `<button type="button" class="btn btn--google" data-action="google-auth" ${ui.googleBusy ? 'disabled aria-busy="true"' : ''}>${googleMark(18)}<span>${ui.googleBusy ? t('auth.googleGoing') : t('auth.google')}</span></button>` : ui.designPreview ? '' : configNote()}
+          ${ui.auth?.errors?.form ? `<p class="error-text">${esc(ui.auth.errors.form)}</p>` : ''}
+          <div class="product-promise"><span>${icon('check',15)} ${t('auth.platformPromise1')}</span><span>${icon('check',15)} ${t('auth.platformPromise2')}</span></div>
         </div>
-
-        <div class="card stack gap-20 hero-card">
-          <div class="eyebrow">${t('auth.previewTitle')}</div>
-          <div class="card card--quiet stack gap-12 hero-ticket" style="padding:20px;border-radius:30px">
-            <div class="row-flex gap-12">
-              <span class="hero-ticket__logo">${diiwaanMark(24)}</span>
-              <div>
-                <div class="serif" style="font-size:19px">${t('auth.yourBusiness')}</div>
-                <div class="hint">${t('auth.yourCity')}</div>
-              </div>
+        <div class="queue-machine" data-depth="3" aria-label="${esc(t('auth.previewTitle'))}">
+          <div class="queue-machine__head"><span>${diiwaanMark(17)} DIIWAAN</span><span class="machine-status">${t('auth.platformSample')}</span></div>
+          <div class="queue-machine__body" aria-live="polite">
+            <div class="machine-rail" aria-hidden="true"><i class="${active===0?'is-active':''}">01</i><span></span><i class="${active===1?'is-active':''}">02</i><span></span><i class="${active===2?'is-active':''}">03</i></div>
+            <div class="machine-scene" data-step="${active}">
+              <div class="machine-scan ${active===0?'scene-active':''}" aria-hidden="${active!==0}"><div class="scan-card"><span class="scan-corner"></span>${qr}<div class="scan-beam"></div></div><p>${t('auth.step.scan')}</p></div>
+              <div class="machine-ticket ${active===1?'scene-active':''}" aria-hidden="${active!==1}"><span class="product-eyebrow">${t('auth.yourNumber')}</span><strong>A-27</strong><span class="ticket-rule"></span><small>${t('auth.aheadExample')}</small><div class="ticket-notch ticket-notch--left"></div><div class="ticket-notch ticket-notch--right"></div></div>
+              <div class="machine-wait ${active===2?'scene-active':''}" aria-hidden="${active!==2}"><div class="wait-ring">${icon('check',34)}</div><strong>A-27</strong><p>${t('auth.step.waitBody')}</p><span class="wait-caption">${t('auth.platformPlaceKept')}</span></div>
             </div>
-            <div class="center" style="padding:12px 0">
-              <div class="eyebrow eyebrow--wide">${t('auth.yourNumber')}</div>
-              <div class="numeral hero-ticket__number" style="font-size:64px;margin-top:8px">A-27</div>
-              <div class="hint mt-8 hero-ticket__ahead">${t('auth.aheadExample')}</div>
-            </div>
-            <!-- The queue itself, moving.
-                 Five markers for the people in front; the front one is served
-                 and the rest step forward, over and over. It carries no words,
-                 so it says the same thing in both languages and in none — and
-                 it is the product's whole idea in one gesture, which is why it
-                 is the only thing on this page allowed to move on its own. -->
-            <div class="hero-queue" aria-hidden="true">
-              ${[0,1,2,3,4].map(i => `<span class="hero-queue__dot" style="--i:${i}"></span>`).join('')}
-            </div>
-            <!-- The line advances on its own: the queue moving is the product. -->
-            <div class="meter meter--live"><i></i></div>
           </div>
-          <p class="hint">${t('auth.everyColour')}</p>
+          <div class="machine-controls" role="group" aria-label="${esc(t('auth.previewTitle'))}">${steps.map((step,index)=>`<button type="button" data-action="landing-step" data-step="${index}" data-keep="machine-${index}" aria-pressed="${active===index}"><span>0${index+1}</span>${t(`auth.step.${step}`)}</button>`).join('')}</div>
+          <div class="machine-caption"><span class="machine-caption__dot"></span>${t(`auth.step.${steps[active]}Body`)}</div>
         </div>
-      </div>
-    </div>`);
+      </section>
+      <section class="product-story landing-journey" aria-labelledby="journey-title" data-depth="4">
+        <div class="product-story__heading"><div><p class="product-eyebrow">${t('auth.journeyEyebrow')}</p><h2 id="journey-title">${t('auth.journeyTitle')}</h2></div><span class="story-index" aria-hidden="true">01 — 03</span></div>
+        <ol class="landing-steps product-steps">${steps.map((step,index)=>`<li class="landing-step" style="--step:${index}"><button type="button" data-action="landing-step" data-step="${index}" data-keep="story-${index}" aria-pressed="${active===index}"><span class="landing-step__index">0${index+1}</span><span class="product-step__copy"><strong>${t(`auth.step.${step}`)}</strong><span>${t(`auth.step.${step}Body`)}</span></span><span class="step-arrow" aria-hidden="true">↗</span></button></li>`).join('')}</ol>
+      </section>
+      <section class="product-outcome" data-depth="3"><div><p class="product-eyebrow">${t('auth.platformForBusiness')}</p><h2>${t('auth.platformClosing')}</h2></div><a class="btn product-primary" href="/signup">${t('auth.createQueue')} <span aria-hidden="true">↗</span></a></section>
+    </main><footer class="auth-footer product-footer"><span>DIIWAAN · ${t('auth.tagline')}</span>${madeBy()}</footer>
+  </div>`;
 }
 
 function passwordField({ id, label, value, error, autocomplete, show, hint }) {

@@ -12,6 +12,10 @@
       "destination": "/api/index"
     },
     {
+      "source": "/design",
+      "destination": "/design-preview.html"
+    },
+    {
       "source": "/((?!api/).*)",
       "destination": "/index.html"
     }

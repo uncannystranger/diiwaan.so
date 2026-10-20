@@ -908,7 +908,7 @@ function watchDisplayIdle() {
     if (ui.displayIdle) { ui.displayIdle = false; render(); }
     clearTimeout(idleTimer);
     idleTimer = setTimeout(() => {
-      if (resolvedRoute.kind !== 'display') return;
+      if (resolvedRoute?.kind !== 'display') return;
       ui.displayIdle = true;
       render();
     }, 4000);
@@ -1072,6 +1072,12 @@ function checkQrReadability(qr) {
 /* ---------- actions ---------- */
 
 const actions = {
+  'landing-step'(event, el) {
+    const step = Number(el.dataset.step);
+    if (![0, 1, 2].includes(step)) return;
+    ui.landingStep = step;
+    render();
+  },
   /* Theme: one attribute write, icon swapped in place, nothing else. Silent by
      design — a confirmation for a change you can already see is just noise. */
   'cycle-theme'() {
@@ -2201,7 +2207,7 @@ document.addEventListener('keydown', event => {
     if (ui.dialog) return closeDialog(null);
     if (ui.addOpen || ui.accountOpen) { ui.addOpen = ui.accountOpen = false; return render(); }
   }
-  if (typing || resolvedRoute.kind !== 'queue') return;
+  if (typing || resolvedRoute?.kind !== 'queue') return;
 
   const map = { n: 'queue-next', a: 'open-add', s: 'ticket-skip', p: 'queue-pause' };
   const key = event.key.toLowerCase();
