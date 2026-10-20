@@ -3608,3 +3608,5 @@ html.retint, html.retint *, html.retint *::before, html.retint *::after {
 .design-review-label { display:flex;justify-content:space-between;align-items:center;gap:16px;padding:9px 4%;background:#dcebe4;color:#17352c;font:11px system-ui,sans-serif; }.design-review-label a { text-decoration:underline; }
 
 .product-landing .product-primary:any-link { color:var(--canvas); }.design-review-label a:any-link { color:#17352c; }
+
+@media(max-width:390px) { .product-nav__signin { display:none; }.product-nav .topbar__right { gap:7px; }.design-review-label { font-size:9px; }.product-hero h1 { letter-spacing:-.065em; } }
