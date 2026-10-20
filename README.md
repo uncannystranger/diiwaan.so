@@ -1,3 +1,5 @@
+> **Latest release: v1.21.0** — [Release notes](RELEASE-NOTES.md) · [GitHub release](https://github.com/uncannystranger/diiwaan.so/releases/tag/v1.21.0)
+
 <div align="center">
 
 <img src=".github/assets/hero.svg" alt="Diiwaan — queue management for Somali businesses" width="100%">
